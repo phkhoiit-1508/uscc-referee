@@ -84,7 +84,7 @@ The intended product flow is: create a tournament, import pairings, record a res
 
 Do not treat this fixed layout as the final Swiss-Manager integration. The product requirements require a real Swiss-Manager export/import sample before its column format can be finalized.
 
-`lib/result-rules.ts` is currently empty; result lifecycle and special outcomes such as bye, absence, resignation, and forfeit have not yet been implemented.
+`lib/result-rules.ts` defines the result lifecycle. Normal and resignation results require sequential White/Black confirmation; absence, forfeit, and other special results require technical approval. Bye remains blocked until a real Swiss-Manager sample and USCC result codes are agreed.
 
 ### UI
 

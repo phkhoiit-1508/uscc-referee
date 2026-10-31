@@ -9,8 +9,10 @@ import {
   nextStatusAfterWhiteConfirm,
   nextStatusAfterBlackConfirm,
   isTerminal,
+  requiresTechnicalApproval,
   RESULT_CODES,
   RESULT_KINDS,
+  SUBMITTABLE_RESULT_KINDS,
   type MatchStatus,
 } from "./result-rules.ts";
 
@@ -21,10 +23,18 @@ test("result-rules: RESULT_CODES contains standard chess outcomes", () => {
 test("result-rules: RESULT_KINDS contains all expected PRD categories", () => {
   assert.deepEqual(RESULT_KINDS, [
     "normal",
+    "resignation",
     "bye",
     "forfeit",
     "absence",
     "adjudicated",
+    "other",
+  ]);
+  assert.deepEqual(SUBMITTABLE_RESULT_KINDS, [
+    "normal",
+    "resignation",
+    "forfeit",
+    "absence",
     "other",
   ]);
 });
@@ -45,7 +55,13 @@ test("result-rules: submission rules", () => {
   for (const st of disallowed) {
     assert.equal(canSubmit(st), false, `canSubmit should be false for ${st}`);
   }
-  assert.equal(nextStatusAfterSubmit(), "pending_white");
+  assert.equal(nextStatusAfterSubmit("normal"), "pending_white");
+  assert.equal(nextStatusAfterSubmit("resignation"), "pending_white");
+  assert.equal(nextStatusAfterSubmit("forfeit"), "special_review");
+  assert.equal(nextStatusAfterSubmit("absence"), "special_review");
+  assert.equal(nextStatusAfterSubmit("other"), "special_review");
+  assert.equal(requiresTechnicalApproval("forfeit"), true);
+  assert.equal(requiresTechnicalApproval("normal"), false);
 });
 
 test("result-rules: confirmation order White -> Black", () => {

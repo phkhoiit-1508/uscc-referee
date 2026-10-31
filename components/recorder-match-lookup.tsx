@@ -14,7 +14,7 @@ import {
 } from "@/app/tournaments/[id]/actions";
 import { Button } from "@/components/ui/button";
 import { matchMatchesSearch } from "@/lib/match-search";
-import { RESULT_CODES } from "@/lib/result-rules";
+import { RESULT_CODES, RESULT_KIND_LABELS } from "@/lib/result-rules";
 
 type MatchRow = {
   id: string;
@@ -45,14 +45,13 @@ const RESULT_LABELS: Record<string, string> = {
   "1/2-1/2": "Hòa (½-½)",
 };
 
-const RESULT_KIND_LABELS: Record<string, string> = {
-  normal: "Bình thường",
-  forfeit: "Xử thua",
-  absence: "Vắng mặt",
-  bye: "Bye",
-  adjudicated: "Trọng tài quyết định",
-  other: "Khác",
-};
+const RECORDER_RESULT_KINDS = [
+  "normal",
+  "resignation",
+  "forfeit",
+  "absence",
+  "other",
+] as const;
 
 const initialSubmit: SubmitResultState = {};
 const initialConfirm: ConfirmSideState = {};
@@ -108,7 +107,10 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
             </div>
           )}
           {match.result_code && (
-            <p className="mt-1 text-sm font-semibold text-teal-700">{RESULT_LABELS[match.result_code]}</p>
+            <p className="mt-2 text-sm font-semibold text-teal-700">
+              {RESULT_LABELS[match.result_code]}
+              {match.result_kind && ` · ${RESULT_KIND_LABELS[match.result_kind as keyof typeof RESULT_KIND_LABELS] ?? match.result_kind}`}
+            </p>
           )}
         </div>
         <span
@@ -158,8 +160,8 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
               onChange={(event) => setResultKind(event.target.value)}
               className="min-h-12 rounded border border-slate-300 bg-white px-3 text-base text-slate-900"
             >
-              {Object.entries(RESULT_KIND_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {RECORDER_RESULT_KINDS.map((value) => (
+                <option key={value} value={value}>{RESULT_KIND_LABELS[value]}</option>
               ))}
             </select>
           </label>
@@ -178,7 +180,9 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
             <p className="text-sm font-semibold uppercase text-teal-800">Kiểm tra trước khi đưa điện thoại</p>
             <p className="mt-3 text-lg font-semibold">{match.white_player?.full_name} — {match.black_player?.full_name}</p>
             <p className="mt-2 text-2xl font-bold text-teal-900">{RESULT_LABELS[resultCode]}</p>
-            <p className="mt-1 text-sm text-teal-800">{RESULT_KIND_LABELS[resultKind]}</p>
+            <p className="mt-1 text-sm text-teal-800">
+              {RESULT_KIND_LABELS[resultKind as keyof typeof RESULT_KIND_LABELS]}
+            </p>
           </div>
           {submitState.error && <p role="alert" className="text-sm text-red-700">{submitState.error}</p>}
           <div className="grid gap-2 sm:grid-cols-2">
@@ -242,10 +246,12 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
         <p className="mt-2 text-sm text-red-700">Tranh chấp đã ghi nhận — chờ trọng tài kỹ thuật xử lý.</p>
       )}
 
-      {isTechnical && status === "disputed" && !resolveState.success && (
+      {isTechnical && isDisputed && !resolveState.success && (
         <form action={resolveAction} className="mt-3 grid gap-3 border-t border-slate-100 pt-3">
           <input type="hidden" name="matchId" value={match.id} />
-          <p className="text-sm font-medium">Phân xử tranh chấp (không cần xác nhận lại)</p>
+          <p className="text-sm font-medium">
+            {status === "disputed" ? "Phân xử tranh chấp" : "Duyệt kết quả đặc biệt"} (không cần xác nhận lại)
+          </p>
           <div className="flex flex-wrap gap-2">
             {RESULT_CODES.map((code) => (
               <label key={code} className="flex items-center gap-1 text-sm">
@@ -258,6 +264,7 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
             Loại kết quả
             <select name="resultKind" defaultValue={match.result_kind ?? "adjudicated"} className="rounded border border-slate-300 bg-white p-2 text-slate-900">
               <option value="normal">Bình thường</option>
+              <option value="resignation">Bỏ cuộc</option>
               <option value="adjudicated">Trọng tài quyết định</option>
               <option value="forfeit">Xử thua</option>
               <option value="absence">Vắng mặt</option>
@@ -294,7 +301,11 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
         <p className="mt-2 text-sm text-teal-700 font-medium">Kết quả chính thức.</p>
       )}
       {isDisputed && (
-        <p className="mt-2 text-sm text-red-700">Tranh chấp — trọng tài kỹ thuật cần xử lý.</p>
+        <p className="mt-2 text-sm text-red-700">
+          {status === "disputed"
+            ? "Tranh chấp — trọng tài kỹ thuật cần xử lý."
+            : "Kết quả đặc biệt — chờ trọng tài kỹ thuật duyệt."}
+        </p>
       )}
     </div>
   );

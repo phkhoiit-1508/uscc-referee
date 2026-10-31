@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { ProjectionRefresh } from "./projection-refresh";
 import { requireReferee } from "@/lib/require-referee";
+import { RESULT_KIND_LABELS, type ResultKind } from "@/lib/result-rules";
 import { createClient } from "@/lib/supabase/server";
 
 type OfficialMatch = {
@@ -12,6 +13,7 @@ type OfficialMatch = {
   round_number: number;
   board_number: number;
   result_code: string;
+  result_kind: ResultKind | null;
   white_player: { full_name: string } | null;
   black_player: { full_name: string } | null;
 };
@@ -36,7 +38,7 @@ async function ProjectionContent({ id }: { id: string }) {
 
   const { data, error } = await supabase
     .from("matches")
-    .select(`id, round_number, board_number, result_code,
+    .select(`id, round_number, board_number, result_code, result_kind,
       white_player:players!white_same_tournament(full_name),
       black_player:players!black_same_tournament(full_name)`)
     .eq("tournament_id", id)
@@ -95,7 +97,12 @@ async function ProjectionContent({ id }: { id: string }) {
                     <td className="py-4 pr-4">{match.round_number}</td>
                     <td className="py-4 pr-4">{match.board_number}</td>
                     <td className="py-4 pr-4">{match.white_player?.full_name ?? "—"}</td>
-                    <td className="py-4 pr-4 font-bold text-teal-300">{match.result_code}</td>
+                    <td className="py-4 pr-4 font-bold text-teal-300">
+                      {match.result_code}
+                      <span className="ml-2 text-sm font-medium text-slate-300">
+                        · {match.result_kind ? RESULT_KIND_LABELS[match.result_kind] : "Chưa phân loại"}
+                      </span>
+                    </td>
                     <td className="py-4">{match.black_player?.full_name ?? "—"}</td>
                   </tr>
                 ))}

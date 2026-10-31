@@ -1,7 +1,11 @@
 "use server";
 
 import { parsePairings, type Pairing } from "@/lib/excel/parse-pairings";
-import { RESULT_CODES, RESULT_KINDS } from "@/lib/result-rules";
+import {
+  RESULT_CODES,
+  RESULT_KINDS,
+  SUBMITTABLE_RESULT_KINDS,
+} from "@/lib/result-rules";
 import { requireReferee } from "@/lib/require-referee";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
@@ -153,7 +157,9 @@ export async function submitResult(
 
   if (typeof matchId !== "string" || !matchId) return { error: "Thiếu ID ván đấu." };
   if (!RESULT_CODES.includes(resultCode as never)) return { error: "Kết quả không hợp lệ." };
-  if (!RESULT_KINDS.includes(resultKind as never)) return { error: "Loại kết quả không hợp lệ." };
+  if (!SUBMITTABLE_RESULT_KINDS.includes(resultKind as never)) {
+    return { error: "Loại kết quả không hỗ trợ nhập trực tiếp." };
+  }
 
   const admin = createAdminClient();
   const { error } = await admin.rpc("uscc_submit_result", {
@@ -237,8 +243,13 @@ export async function resolveDispute(
   if (typeof matchId !== "string" || !matchId) return { error: "Thiếu ID ván đấu." };
   if (typeof resultCode !== "string" || !RESULT_CODES.includes(resultCode as (typeof RESULT_CODES)[number]))
     return { error: "Kết quả không hợp lệ." };
-  if (typeof resultKind !== "string" || !["normal", "forfeit", "absence", "adjudicated", "other"].includes(resultKind))
+  if (
+    typeof resultKind !== "string" ||
+    !RESULT_KINDS.includes(resultKind as (typeof RESULT_KINDS)[number]) ||
+    resultKind === "bye"
+  ) {
     return { error: "Loại kết quả không hợp lệ." };
+  }
   if (typeof reason !== "string" || !reason.trim() || reason.trim().length > 1000)
     return { error: "Lý do phải có từ 1 đến 1000 ký tự." };
 
@@ -250,7 +261,9 @@ export async function resolveDispute(
     p_reason: reason.trim(),
   });
   if (error) {
-    if (error.message.includes("MATCH_NOT_DISPUTED")) return { error: "Ván đấu không còn ở trạng thái tranh chấp. Hãy tải lại trang." };
+    if (error.message.includes("MATCH_NOT_REVIEWABLE")) {
+      return { error: "Ván đấu không còn chờ technical xử lý. Hãy tải lại trang." };
+    }
     if (error.message.includes("MATCH_NOT_FOUND")) return { error: "Không tìm thấy ván đấu." };
     return { error: "Không thể phân xử. Hãy thử lại hoặc liên hệ quản trị viên." };
   }
