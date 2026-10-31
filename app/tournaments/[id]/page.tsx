@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { ImportPreviewForm } from "@/components/import-preview-form";
 import { RecorderMatchLookup } from "@/components/recorder-match-lookup";
+import { TournamentEditForm } from "@/components/tournament-create-form";
 import { Button } from "@/components/ui/button";
 import { requireReferee } from "@/lib/require-referee";
 import { createClient } from "@/lib/supabase/server";
@@ -31,7 +32,7 @@ async function TournamentContent({ id }: { id: string }) {
   const supabase = await createClient();
   const { data: tournament } = await supabase
     .from("tournaments")
-    .select("id, name, organizer, venue, start_date, end_date, total_rounds")
+    .select("id, name, organizer, venue, start_date, end_date, total_rounds, logo_url, primary_color")
     .eq("id", id)
     .single();
 
@@ -53,8 +54,8 @@ async function TournamentContent({ id }: { id: string }) {
     .select(`
       id, board_number, round_number, status, result_code, result_kind,
       white_confirmed_at, black_confirmed_at,
-      white_player:players!white_same_tournament(full_name, club),
-      black_player:players!black_same_tournament(full_name, club)
+      white_player:players!white_same_tournament(full_name, club, external_id),
+      black_player:players!black_same_tournament(full_name, club, external_id)
     `)
     .eq("tournament_id", id)
     .order("round_number")
@@ -69,14 +70,47 @@ async function TournamentContent({ id }: { id: string }) {
           <Link href="/tournaments">← Danh sách giải</Link>
         </Button>
 
-        <div className="border-b border-slate-200 pb-8">
-          <p className="mb-1 text-sm text-slate-500">{tournament.organizer || "Chưa có đơn vị tổ chức"}</p>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{tournament.name}</h1>
-          {tournament.venue && (
-            <p className="mt-2 text-slate-600">{tournament.venue}</p>
+        <div
+          className="flex items-center gap-5 border-b-4 border-slate-200 pb-8"
+          style={{ borderBottomColor: tournament.primary_color ?? "#172C4C" }}
+        >
+          {tournament.logo_url && (
+            <div
+              role="img"
+              aria-label={`Logo ${tournament.name}`}
+              className="h-20 w-20 shrink-0 bg-contain bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${JSON.stringify(tournament.logo_url)})` }}
+            />
           )}
-          <p className="mt-2 text-sm text-slate-500">{tournament.total_rounds} vòng đấu</p>
+          <div>
+            <p className="mb-1 text-sm text-slate-500">{tournament.organizer || "Chưa có đơn vị tổ chức"}</p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{tournament.name}</h1>
+            {tournament.venue && <p className="mt-2 text-slate-600">{tournament.venue}</p>}
+            <p className="mt-2 text-sm text-slate-500">{tournament.total_rounds} vòng đấu</p>
+          </div>
         </div>
+
+        {isTechnical && (
+          <section className="mt-10 border border-slate-200 bg-white p-5 sm:p-7">
+            <div className="mb-5">
+              <h2 className="text-xl font-semibold">Chỉnh sửa thông tin giải</h2>
+              <p className="mt-1 text-sm text-slate-500">Thay đổi sẽ được ghi vào nhật ký hệ thống.</p>
+            </div>
+            <TournamentEditForm
+              tournamentId={tournament.id}
+              values={{
+                name: tournament.name,
+                organizer: tournament.organizer ?? "",
+                venue: tournament.venue ?? "",
+                startDate: tournament.start_date ?? "",
+                endDate: tournament.end_date ?? "",
+                totalRounds: tournament.total_rounds,
+                logoUrl: tournament.logo_url ?? "",
+                primaryColor: tournament.primary_color ?? "#172C4C",
+              }}
+            />
+          </section>
+        )}
 
         {isTechnical && (
           <section className="mt-10 border border-slate-200 bg-white p-5 sm:p-7">

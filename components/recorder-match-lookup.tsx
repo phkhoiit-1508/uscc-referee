@@ -13,6 +13,7 @@ import {
   type TechnicalResultState,
 } from "@/app/tournaments/[id]/actions";
 import { Button } from "@/components/ui/button";
+import { matchMatchesSearch } from "@/lib/match-search";
 import { RESULT_CODES } from "@/lib/result-rules";
 
 type MatchRow = {
@@ -24,8 +25,8 @@ type MatchRow = {
   result_kind: string | null;
   white_confirmed_at: string | null;
   black_confirmed_at: string | null;
-  white_player: { full_name: string; club: string | null } | null;
-  black_player: { full_name: string; club: string | null } | null;
+  white_player: { full_name: string; club: string | null; external_id: string | null } | null;
+  black_player: { full_name: string; club: string | null; external_id: string | null } | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +45,15 @@ const RESULT_LABELS: Record<string, string> = {
   "1/2-1/2": "Hòa (½-½)",
 };
 
+const RESULT_KIND_LABELS: Record<string, string> = {
+  normal: "Bình thường",
+  forfeit: "Xử thua",
+  absence: "Vắng mặt",
+  bye: "Bye",
+  adjudicated: "Trọng tài quyết định",
+  other: "Khác",
+};
+
 const initialSubmit: SubmitResultState = {};
 const initialConfirm: ConfirmSideState = {};
 const initialTechnical: TechnicalResultState = {};
@@ -54,7 +64,9 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
   const [confirmState, confirmAction, confirmPending] = useActionState(confirmSide, initialConfirm);
   const [resolveState, resolveAction, resolvePending] = useActionState(resolveDispute, initialTechnical);
   const [reopenState, reopenAction, reopenPending] = useActionState(reopenResult, initialTechnical);
+  const [resultCode, setResultCode] = useState("");
   const [resultKind, setResultKind] = useState("normal");
+  const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
     if (submitState.success || confirmState.success || confirmState.disputed || resolveState.success || reopenState.success) {
@@ -65,6 +77,9 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
   const status = match.status;
   const isDone = status === "official";
   const isDisputed = status === "disputed" || status === "special_review";
+  const confirmationSide = status === "pending_white" ? "white" : status === "pending_black" ? "black" : null;
+  const confirmationPlayer = confirmationSide === "white" ? match.white_player : confirmationSide === "black" ? match.black_player : null;
+  const confirmationSideLabel = confirmationSide === "white" ? "Trắng" : "Đen";
 
   return (
     <div className="rounded border border-slate-200 bg-white p-4">
@@ -73,11 +88,25 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Bàn {match.board_number} · Vòng {match.round_number}
           </span>
-          <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
-            <span className="font-medium">{match.white_player?.full_name ?? "—"}</span>
-            <span className="text-slate-400">vs</span>
-            <span className="font-medium text-right">{match.black_player?.full_name ?? "—"}</span>
-          </div>
+          {!confirmationSide && (
+            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-start gap-3 text-sm">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Trắng</p>
+                <p className="font-medium">{match.white_player?.full_name ?? "—"}</p>
+                <p className="text-xs text-slate-500">
+                  {[match.white_player?.external_id, match.white_player?.club].filter(Boolean).join(" · ") || "Chưa có mã/đơn vị"}
+                </p>
+              </div>
+              <span className="pt-5 text-slate-400">vs</span>
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase text-slate-500">Đen</p>
+                <p className="font-medium">{match.black_player?.full_name ?? "—"}</p>
+                <p className="text-xs text-slate-500">
+                  {[match.black_player?.external_id, match.black_player?.club].filter(Boolean).join(" · ") || "Chưa có mã/đơn vị"}
+                </p>
+              </div>
+            </div>
+          )}
           {match.result_code && (
             <p className="mt-1 text-sm font-semibold text-teal-700">{RESULT_LABELS[match.result_code]}</p>
           )}
@@ -95,40 +124,71 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
         </span>
       </div>
 
-      {/* Submit form */}
-      {(status === "unreported" || status === "reopened") && !submitState.success && (
-        <form action={submitAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3">
-          <input type="hidden" name="matchId" value={match.id} />
-          <div className="flex flex-wrap gap-2">
-            {RESULT_CODES.map((code) => (
-              <label key={code} className="flex cursor-pointer items-center gap-1 rounded border border-slate-200 px-2 py-1 text-sm hover:bg-slate-50 has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50">
-                <input type="radio" name="resultCode" value={code} required className="accent-teal-600" />
-                {RESULT_LABELS[code]}
-              </label>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Loại:</label>
+      {(status === "unreported" || status === "reopened") && !submitState.success && !reviewing && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setReviewing(true);
+          }}
+          className="mt-3 grid gap-3 border-t border-slate-100 pt-3"
+        >
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-medium">Chọn kết quả</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {RESULT_CODES.map((code) => (
+                <label key={code} className="flex min-h-12 cursor-pointer items-center gap-2 rounded border border-slate-200 px-3 text-sm hover:bg-slate-50 has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50">
+                  <input
+                    type="radio"
+                    name="resultCode"
+                    value={code}
+                    checked={resultCode === code}
+                    onChange={() => setResultCode(code)}
+                    required
+                    className="accent-teal-600"
+                  />
+                  {RESULT_LABELS[code]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="grid gap-1 text-sm font-medium">
+            Loại kết quả
             <select
-              name="resultKind"
               value={resultKind}
-              onChange={(e) => setResultKind(e.target.value)}
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900"
+              onChange={(event) => setResultKind(event.target.value)}
+              className="min-h-12 rounded border border-slate-300 bg-white px-3 text-base text-slate-900"
             >
-              <option value="normal">Bình thường</option>
-              <option value="forfeit">Xử thua</option>
-              <option value="absence">Vắng mặt</option>
-              <option value="bye">Bye</option>
-              <option value="adjudicated">Trọng tài quyết định</option>
-              <option value="other">Khác</option>
+              {Object.entries(RESULT_KIND_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
-          </div>
-          {submitState.error && (
-            <p role="alert" className="text-sm text-red-700">{submitState.error}</p>
-          )}
-          <Button type="submit" disabled={submitPending} size="sm" className="w-fit bg-slate-900 text-white hover:bg-slate-800">
-            {submitPending ? "Đang lưu..." : "Nhập kết quả"}
+          </label>
+          <Button type="submit" disabled={!resultCode} className="min-h-12 w-full bg-slate-900 text-base text-white hover:bg-slate-800 sm:w-fit">
+            Kiểm tra kết quả
           </Button>
+        </form>
+      )}
+
+      {(status === "unreported" || status === "reopened") && !submitState.success && reviewing && (
+        <form action={submitAction} className="mt-3 grid gap-4 border-t border-slate-100 pt-3">
+          <input type="hidden" name="matchId" value={match.id} />
+          <input type="hidden" name="resultCode" value={resultCode} />
+          <input type="hidden" name="resultKind" value={resultKind} />
+          <div className="rounded border-2 border-teal-600 bg-teal-50 p-4 text-center">
+            <p className="text-sm font-semibold uppercase text-teal-800">Kiểm tra trước khi đưa điện thoại</p>
+            <p className="mt-3 text-lg font-semibold">{match.white_player?.full_name} — {match.black_player?.full_name}</p>
+            <p className="mt-2 text-2xl font-bold text-teal-900">{RESULT_LABELS[resultCode]}</p>
+            <p className="mt-1 text-sm text-teal-800">{RESULT_KIND_LABELS[resultKind]}</p>
+          </div>
+          {submitState.error && <p role="alert" className="text-sm text-red-700">{submitState.error}</p>}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant="outline" disabled={submitPending} onClick={() => setReviewing(false)} className="min-h-12 bg-white text-base text-slate-900 hover:bg-slate-100">
+              Quay lại sửa
+            </Button>
+            <Button type="submit" disabled={submitPending} className="min-h-12 bg-teal-700 text-base text-white hover:bg-teal-800">
+              {submitPending ? "Đang lưu..." : "Đúng, gửi Trắng xác nhận"}
+            </Button>
+          </div>
         </form>
       )}
 
@@ -136,71 +196,40 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
         <p className="mt-2 text-sm text-teal-700">Đã nhập — chờ Trắng xác nhận.</p>
       )}
 
-      {/* Confirm form — white */}
-      {status === "pending_white" && !confirmState.success && !confirmState.disputed && (
-        <form action={confirmAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3">
+      {confirmationSide && !confirmState.success && !confirmState.disputed && (
+        <form action={confirmAction} className="mt-3 grid gap-4 rounded border-2 border-slate-900 bg-slate-50 p-4 text-center">
           <input type="hidden" name="matchId" value={match.id} />
-          <input type="hidden" name="side" value="white" />
-          <p className="text-sm text-slate-600">
-            Trắng (<span className="font-medium">{match.white_player?.full_name}</span>) xác nhận kết quả?
-          </p>
-          <div className="flex gap-2">
+          <input type="hidden" name="side" value={confirmationSide} />
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-slate-600">Lượt xác nhận của bên {confirmationSideLabel}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950">{confirmationPlayer?.full_name ?? "—"}</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {[confirmationPlayer?.external_id, confirmationPlayer?.club].filter(Boolean).join(" · ") || "Chưa có mã/đơn vị"}
+            </p>
+            <p className="mt-4 text-3xl font-bold text-teal-800">{match.result_code ? RESULT_LABELS[match.result_code] : "—"}</p>
+          </div>
+          <p className="text-sm text-slate-600">Trọng tài kiểm tra đúng kỳ thủ trước khi đưa điện thoại.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="submit"
               name="agreed"
               value="true"
               disabled={confirmPending}
-              className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-800 disabled:opacity-50"
+              className="min-h-14 rounded bg-teal-700 px-5 text-base font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
             >
-              Đồng ý
+              {confirmPending ? "Đang lưu..." : "Xác nhận"}
             </button>
             <button
               type="submit"
               name="agreed"
               value="false"
               disabled={confirmPending}
-              className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="min-h-14 rounded border-2 border-red-600 bg-white px-5 text-base font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
             >
-              Tranh chấp
+              Không đồng ý
             </button>
           </div>
-          {confirmState.error && (
-            <p role="alert" className="text-sm text-red-700">{confirmState.error}</p>
-          )}
-        </form>
-      )}
-
-      {/* Confirm form — black */}
-      {status === "pending_black" && !confirmState.success && !confirmState.disputed && (
-        <form action={confirmAction} className="mt-3 grid gap-2 border-t border-slate-100 pt-3">
-          <input type="hidden" name="matchId" value={match.id} />
-          <input type="hidden" name="side" value="black" />
-          <p className="text-sm text-slate-600">
-            Đen (<span className="font-medium">{match.black_player?.full_name}</span>) xác nhận kết quả?
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              name="agreed"
-              value="true"
-              disabled={confirmPending}
-              className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-800 disabled:opacity-50"
-            >
-              Đồng ý
-            </button>
-            <button
-              type="submit"
-              name="agreed"
-              value="false"
-              disabled={confirmPending}
-              className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
-            >
-              Tranh chấp
-            </button>
-          </div>
-          {confirmState.error && (
-            <p role="alert" className="text-sm text-red-700">{confirmState.error}</p>
-          )}
+          {confirmState.error && <p role="alert" className="text-sm text-red-700">{confirmState.error}</p>}
         </form>
       )}
 
@@ -282,14 +311,8 @@ export function RecorderMatchLookup({
 }) {
   const [round, setRound] = useState(1);
   const [search, setSearch] = useState("");
-
   const filtered = matches.filter(
-    (m) =>
-      m.round_number === round &&
-      (search === "" ||
-        String(m.board_number).includes(search) ||
-        m.white_player?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-        m.black_player?.full_name.toLowerCase().includes(search.toLowerCase())),
+    (match) => match.round_number === round && matchMatchesSearch(match, search),
   );
 
   return (
@@ -308,12 +331,12 @@ export function RecorderMatchLookup({
           </select>
         </div>
         <div className="grid gap-1">
-          <label className="text-sm font-medium">Tìm bàn / tên</label>
+          <label className="text-sm font-medium">Tìm bàn / tên / mã / đơn vị</label>
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Số bàn hoặc tên kỳ thủ"
+            placeholder="Bàn, tên, mã hoặc đơn vị"
             className="w-56 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
           />
         </div>

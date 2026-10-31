@@ -5,7 +5,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test lib/excel/parse-pairings.test.mts lib/result-rules.test.mts"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test lib/excel/parse-pairings.test.mts lib/match-search.test.mts lib/result-rules.test.mts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.1",

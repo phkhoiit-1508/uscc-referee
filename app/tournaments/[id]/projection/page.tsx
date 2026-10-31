@@ -28,7 +28,7 @@ async function ProjectionContent({ id }: { id: string }) {
   const supabase = await createClient();
   const { data: tournament, error: tournamentError } = await supabase
     .from("tournaments")
-    .select("name")
+    .select("name, logo_url, primary_color")
     .eq("id", id)
     .maybeSingle();
   if (tournamentError) return <main className="p-8 text-center" role="alert">Không tải được giải đấu.</main>;
@@ -52,10 +52,23 @@ async function ProjectionContent({ id }: { id: string }) {
         <Link href={`/tournaments/${id}`} className="text-sm text-slate-300 hover:text-white">
           ← Quay lại giải đấu
         </Link>
-        <header className="mt-8 flex flex-wrap items-end justify-between gap-4 border-b border-slate-700 pb-6">
-          <div>
-            <p className="text-sm uppercase tracking-widest text-teal-300">Kết quả chính thức</p>
-            <h1 className="mt-2 text-3xl font-bold sm:text-5xl">{tournament.name}</h1>
+        <header
+          className="mt-8 flex flex-wrap items-end justify-between gap-4 border-b-4 border-slate-700 pb-6"
+          style={{ borderBottomColor: tournament.primary_color ?? "#14B8A6" }}
+        >
+          <div className="flex items-center gap-5">
+            {tournament.logo_url && (
+              <div
+                role="img"
+                aria-label={`Logo ${tournament.name}`}
+                className="h-24 w-24 shrink-0 bg-contain bg-center bg-no-repeat"
+                style={{ backgroundImage: `url(${JSON.stringify(tournament.logo_url)})` }}
+              />
+            )}
+            <div>
+              <p className="text-sm uppercase tracking-widest text-teal-300">Kết quả chính thức</p>
+              <h1 className="mt-2 text-3xl font-bold sm:text-5xl">{tournament.name}</h1>
+            </div>
           </div>
           <ProjectionRefresh syncedAt={syncedAt} />
         </header>
