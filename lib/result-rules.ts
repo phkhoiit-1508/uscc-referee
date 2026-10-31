@@ -81,3 +81,19 @@ export function nextStatusAfterBlackConfirm(): MatchStatus {
 export function isTerminal(status: MatchStatus): boolean {
   return status === "official";
 }
+
+/** Technical referees may cancel any result that has been entered (FR-08). */
+export function canCancel(status: MatchStatus): boolean {
+  return (
+    status === "pending_white" ||
+    status === "pending_black" ||
+    status === "disputed" ||
+    status === "special_review" ||
+    status === "official"
+  );
+}
+
+/** A cancelled result returns to the start of the normal entry flow. */
+export function statusAfterCancel(): MatchStatus {
+  return "unreported";
+}

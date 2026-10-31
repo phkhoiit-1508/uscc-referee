@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  cancelResult,
   confirmSide,
   reopenResult,
   resolveDispute,
@@ -13,8 +14,9 @@ import {
   type TechnicalResultState,
 } from "@/app/tournaments/[id]/actions";
 import { Button } from "@/components/ui/button";
-import { matchMatchesSearch } from "@/lib/match-search";
-import { RESULT_CODES, RESULT_KIND_LABELS } from "@/lib/result-rules";
+import { filterMatches, type MatchColorFilter } from "@/lib/match-search";
+import { describeSnapshot, eventLabel, type ResultEvent } from "@/lib/result-history";
+import { canCancel, RESULT_CODES, RESULT_KIND_LABELS, type MatchStatus } from "@/lib/result-rules";
 
 type MatchRow = {
   id: string;
@@ -57,21 +59,30 @@ const initialSubmit: SubmitResultState = {};
 const initialConfirm: ConfirmSideState = {};
 const initialTechnical: TechnicalResultState = {};
 
-function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boolean }) {
+function MatchCard({
+  match,
+  isTechnical,
+  history,
+}: {
+  match: MatchRow;
+  isTechnical: boolean;
+  history: ResultEvent[];
+}) {
   const router = useRouter();
   const [submitState, submitAction, submitPending] = useActionState(submitResult, initialSubmit);
   const [confirmState, confirmAction, confirmPending] = useActionState(confirmSide, initialConfirm);
   const [resolveState, resolveAction, resolvePending] = useActionState(resolveDispute, initialTechnical);
   const [reopenState, reopenAction, reopenPending] = useActionState(reopenResult, initialTechnical);
+  const [cancelState, cancelAction, cancelPending] = useActionState(cancelResult, initialTechnical);
   const [resultCode, setResultCode] = useState("");
   const [resultKind, setResultKind] = useState("normal");
   const [reviewing, setReviewing] = useState(false);
 
   useEffect(() => {
-    if (submitState.success || confirmState.success || confirmState.disputed || resolveState.success || reopenState.success) {
+    if (submitState.success || confirmState.success || confirmState.disputed || resolveState.success || reopenState.success || cancelState.success) {
       router.refresh();
     }
-  }, [submitState, confirmState, resolveState, reopenState, router]);
+  }, [submitState, confirmState, resolveState, reopenState, cancelState, router]);
 
   const status = match.status;
   const isDone = status === "official";
@@ -99,7 +110,10 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
               <span className="pt-5 text-slate-400">vs</span>
               <div className="text-right">
                 <p className="text-xs font-semibold uppercase text-slate-500">Đen</p>
-                <p className="font-medium">{match.black_player?.full_name ?? "—"}</p>
+                <p className="font-medium">
+                  {match.black_player?.full_name ??
+                    (match.result_kind === "bye" ? "Miễn đấu (Bye)" : "—")}
+                </p>
                 <p className="text-xs text-slate-500">
                   {[match.black_player?.external_id, match.black_player?.club].filter(Boolean).join(" · ") || "Chưa có mã/đơn vị"}
                 </p>
@@ -211,6 +225,11 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
               {[confirmationPlayer?.external_id, confirmationPlayer?.club].filter(Boolean).join(" · ") || "Chưa có mã/đơn vị"}
             </p>
             <p className="mt-4 text-3xl font-bold text-teal-800">{match.result_code ? RESULT_LABELS[match.result_code] : "—"}</p>
+            {match.result_kind && (
+              <p className="mt-1 text-sm font-medium text-teal-700">
+                Loại kết quả: {RESULT_KIND_LABELS[match.result_kind as keyof typeof RESULT_KIND_LABELS] ?? match.result_kind}
+              </p>
+            )}
           </div>
           <p className="text-sm text-slate-600">Trọng tài kiểm tra đúng kỳ thủ trước khi đưa điện thoại.</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -265,6 +284,7 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
             <select name="resultKind" defaultValue={match.result_kind ?? "adjudicated"} className="rounded border border-slate-300 bg-white p-2 text-slate-900">
               <option value="normal">Bình thường</option>
               <option value="resignation">Bỏ cuộc</option>
+              <option value="bye">Bye (Miễn đấu)</option>
               <option value="adjudicated">Trọng tài quyết định</option>
               <option value="forfeit">Xử thua</option>
               <option value="absence">Vắng mặt</option>
@@ -297,6 +317,31 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
       {(resolveState.success || reopenState.success) && (
         <p role="status" className="mt-2 text-sm text-teal-700">Đã cập nhật. Đang tải dữ liệu mới...</p>
       )}
+      {isTechnical && canCancel(status as MatchStatus) && !cancelState.success && (
+        <form
+          action={cancelAction}
+          onSubmit={(event) => {
+            if (!window.confirm(`Hủy kết quả bàn ${match.board_number}? Ván sẽ về trạng thái chưa nhập; lịch sử vẫn được giữ.`)) {
+              event.preventDefault();
+            }
+          }}
+          className="mt-3 grid gap-2 border-t border-slate-100 pt-3"
+        >
+          <input type="hidden" name="matchId" value={match.id} />
+          <input type="hidden" name="expectedStatus" value={status} />
+          <label className="grid gap-1 text-sm">
+            Lý do hủy kết quả (ván về trạng thái chưa nhập, xác nhận cũ bị vô hiệu)
+            <textarea name="reason" required maxLength={1000} rows={2} className="rounded border border-slate-300 bg-white p-2 text-slate-900" />
+          </label>
+          {cancelState.error && <p role="alert" className="text-sm text-red-700">{cancelState.error}</p>}
+          <Button type="submit" disabled={cancelPending} size="sm" variant="outline" className="w-fit border-red-300 bg-white text-red-700 hover:bg-red-50 hover:text-red-800">
+            {cancelPending ? "Đang hủy..." : "Hủy kết quả"}
+          </Button>
+        </form>
+      )}
+      {cancelState.success && (
+        <p role="status" className="mt-2 text-sm text-teal-700">Đã hủy kết quả. Đang tải dữ liệu mới...</p>
+      )}
       {isDone && !reopenState.success && (
         <p className="mt-2 text-sm text-teal-700 font-medium">Kết quả chính thức.</p>
       )}
@@ -307,6 +352,32 @@ function MatchCard({ match, isTechnical }: { match: MatchRow; isTechnical: boole
             : "Kết quả đặc biệt — chờ trọng tài kỹ thuật duyệt."}
         </p>
       )}
+      {isTechnical && history.length > 0 && (
+        <details className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-700">
+            Lịch sử thay đổi kết quả ({history.length})
+          </summary>
+          <ol className="mt-2 grid gap-2">
+            {history.map((event) => (
+              <li key={event.id} className="rounded bg-slate-50 p-2">
+                <div className="flex flex-wrap justify-between gap-2 font-medium text-slate-900">
+                  <span>{eventLabel(event)}</span>
+                  <span className="text-slate-500">
+                    {event.actor_name} ·{" "}
+                    {new Date(event.created_at).toLocaleString("vi-VN", {
+                      timeZone: "Asia/Ho_Chi_Minh",
+                    })}
+                  </span>
+                </div>
+                <p className="mt-1 text-slate-600">
+                  Trước: {describeSnapshot(event.old_data)} → Sau: {describeSnapshot(event.new_data)}
+                </p>
+                {event.reason && <p className="mt-1 text-slate-700">Lý do: {event.reason}</p>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
     </div>
   );
 }
@@ -315,16 +386,89 @@ export function RecorderMatchLookup({
   totalRounds,
   matches,
   isTechnical,
+  historyByMatch,
+  tournamentId,
 }: {
   totalRounds: number;
   matches: MatchRow[];
   isTechnical: boolean;
+  historyByMatch?: Record<string, ResultEvent[]>;
+  tournamentId?: string;
 }) {
+  const [liveMatches, setLiveMatches] = useState<MatchRow[]>(matches);
+  const [liveHistory, setLiveHistory] = useState<Record<string, ResultEvent[]>>(historyByMatch ?? {});
   const [round, setRound] = useState(1);
   const [search, setSearch] = useState("");
-  const filtered = matches.filter(
-    (match) => match.round_number === round && matchMatchesSearch(match, search),
-  );
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [resultFilter, setResultFilter] = useState("all");
+  const [colorFilter, setColorFilter] = useState<MatchColorFilter>("all");
+
+  const inFlightRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setLiveMatches(matches);
+  }, [matches]);
+
+  useEffect(() => {
+    if (historyByMatch) {
+      setLiveHistory(historyByMatch);
+    }
+  }, [historyByMatch]);
+
+  const pollMatches = useCallback(async () => {
+    if (!tournamentId || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}/matches`, {
+        signal: controller.signal,
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data.matches)) {
+          setLiveMatches(data.matches);
+        }
+        if (data.historyByMatch) {
+          setLiveHistory(data.historyByMatch);
+        }
+      }
+    } catch {
+      // Ignore transient errors on background sync
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [tournamentId]);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    const timer = window.setInterval(pollMatches, 3000);
+    return () => {
+      window.clearInterval(timer);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [tournamentId, pollMatches]);
+
+  const roundTotalCount = liveMatches.filter((m) => m.round_number === round).length;
+  const filtered = filterMatches(liveMatches, {
+    round,
+    query: search,
+    statusFilter,
+    resultFilter,
+    colorFilter,
+  });
+
+  const hasActiveFilter =
+    search.trim() !== "" ||
+    statusFilter !== "all" ||
+    resultFilter !== "all" ||
+    colorFilter !== "all";
 
   return (
     <div className="grid gap-4">
@@ -347,18 +491,88 @@ export function RecorderMatchLookup({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Bàn, tên, mã hoặc đơn vị"
-            className="w-56 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            placeholder="Bàn, tên (có/không dấu), mã, CLB"
+            className="w-60 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400"
           />
         </div>
+        <div className="grid gap-1">
+          <label className="text-sm font-medium">Trạng thái</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="unreported">Chưa nhập</option>
+            <option value="pending">Đang chờ xác nhận (Trắng/Đen)</option>
+            <option value="pending_white">Chờ Trắng xác nhận</option>
+            <option value="pending_black">Chờ Đen xác nhận</option>
+            <option value="exception">Tranh chấp / Xét đặc biệt</option>
+            <option value="disputed">Tranh chấp</option>
+            <option value="special_review">Xét đặc biệt</option>
+            <option value="official">Chính thức</option>
+            <option value="reopened">Mở lại</option>
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="text-sm font-medium">Kết quả</label>
+          <select
+            value={resultFilter}
+            onChange={(e) => setResultFilter(e.target.value)}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
+          >
+            <option value="all">Tất cả kết quả</option>
+            <option value="1-0">Trắng thắng (1-0)</option>
+            <option value="0-1">Đen thắng (0-1)</option>
+            <option value="1/2-1/2">Hòa (½-½)</option>
+            <option value="unscored">Chưa có tỷ số</option>
+          </select>
+        </div>
+        <div className="grid gap-1">
+          <label className="text-sm font-medium">Màu quân</label>
+          <select
+            value={colorFilter}
+            onChange={(e) => setColorFilter(e.target.value as MatchColorFilter)}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900"
+          >
+            <option value="all">Cả Trắng & Đen</option>
+            <option value="white">Chỉ tìm bên Trắng</option>
+            <option value="black">Chỉ tìm bên Đen</option>
+          </select>
+        </div>
+        {hasActiveFilter && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+              setResultFilter("all");
+              setColorFilter("all");
+            }}
+            className="text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+          >
+            Xóa bộ lọc
+          </Button>
+        )}
       </div>
+
+      <p className="text-xs text-slate-500">
+        Hiển thị <span className="font-semibold text-slate-700">{filtered.length}</span> / {roundTotalCount} bàn trong Vòng {round}
+      </p>
 
       {filtered.length === 0 ? (
         <p className="text-sm text-slate-500">Không tìm thấy ván đấu.</p>
       ) : (
         <div className="grid gap-3">
           {filtered.map((m) => (
-            <MatchCard key={`${m.id}-${m.status}`} match={m} isTechnical={isTechnical} />
+            <MatchCard
+              key={`${m.id}-${m.status}`}
+              match={m}
+              isTechnical={isTechnical}
+              history={liveHistory[m.id] ?? []}
+            />
           ))}
         </div>
       )}

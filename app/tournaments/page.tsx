@@ -47,7 +47,7 @@ async function TournamentsContent() {
   const { data: tournaments, error } = await supabase
     .from("tournaments")
     .select(
-      "id, name, organizer, venue, start_date, end_date, total_rounds, primary_color",
+      "id, name, organizer, venue, start_date, end_date, total_rounds, logo_url, primary_color",
     )
     .order("created_at", { ascending: false });
 
@@ -131,16 +131,26 @@ async function TournamentsContent() {
                   }}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">{tournament.name}</h3>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {tournament.organizer || "Chưa có đơn vị tổ chức"}
-                        {tournament.venue ? ` · ${tournament.venue}` : ""}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {formatDate(tournament.start_date)} – {formatDate(tournament.end_date)}
-                        {` · ${tournament.total_rounds} vòng`}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      {tournament.logo_url && (
+                        <div
+                          role="img"
+                          aria-label={`Logo ${tournament.name}`}
+                          className="h-14 w-14 shrink-0 bg-contain bg-center bg-no-repeat"
+                          style={{ backgroundImage: `url(${JSON.stringify(tournament.logo_url)})` }}
+                        />
+                      )}
+                      <div>
+                        <h3 className="text-lg font-semibold">{tournament.name}</h3>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {tournament.organizer || "Chưa có đơn vị tổ chức"}
+                          {tournament.venue ? ` · ${tournament.venue}` : ""}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-500">
+                          {formatDate(tournament.start_date)} – {formatDate(tournament.end_date)}
+                          {` · ${tournament.total_rounds} vòng`}
+                        </p>
+                      </div>
                     </div>
 
                     <Button asChild variant="outline" className="bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900">

@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canCancel,
   canSubmit,
+  statusAfterCancel,
   canConfirmWhite,
   canConfirmBlack,
   canDispute,
@@ -93,4 +95,14 @@ test("result-rules: terminal status", () => {
   assert.equal(isTerminal("pending_black"), false);
   assert.equal(isTerminal("disputed"), false);
   assert.equal(isTerminal("reopened"), false);
+});
+
+test("result-rules: cancel rules (FR-08)", () => {
+  const cancellable: MatchStatus[] = ["pending_white", "pending_black", "disputed", "special_review", "official"];
+  const notCancellable: MatchStatus[] = ["unreported", "reopened"];
+  for (const st of cancellable) assert.equal(canCancel(st), true, `canCancel should be true for ${st}`);
+  for (const st of notCancellable) assert.equal(canCancel(st), false, `canCancel should be false for ${st}`);
+  // A cancelled match can be entered again through the normal flow.
+  assert.equal(canSubmit(statusAfterCancel()), true);
+  assert.equal(isTerminal(statusAfterCancel()), false);
 });

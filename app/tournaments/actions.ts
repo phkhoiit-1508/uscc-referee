@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireReferee } from "@/lib/require-referee";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSafeHttpUrl } from "@/lib/tournament-validation";
 
 export type TournamentFormState = {
   success?: boolean;
@@ -47,13 +48,7 @@ const tournamentSchema = z
       .max(2048, "Đường dẫn logo quá dài")
       .refine((value) => {
         if (!value) return true;
-
-        try {
-          const url = new URL(value);
-          return url.protocol === "http:" || url.protocol === "https:";
-        } catch {
-          return false;
-        }
+        return isSafeHttpUrl(value);
       }, "Logo phải là đường dẫn HTTP hoặc HTTPS"),
     primaryColor: z
       .string()
