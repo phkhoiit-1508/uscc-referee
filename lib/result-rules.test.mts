@@ -106,3 +106,25 @@ test("result-rules: cancel rules (FR-08)", () => {
   assert.equal(canSubmit(statusAfterCancel()), true);
   assert.equal(isTerminal(statusAfterCancel()), false);
 });
+
+test("result-rules: losing side confirmation logic", async () => {
+  const { getLosingConfirmationSide, requiresBothSidesConfirmation } = await import(
+    "./result-rules.ts"
+  );
+  // 1-0: White wins -> Black is the loser who must confirm
+  assert.equal(getLosingConfirmationSide("1-0"), "black");
+  assert.equal(requiresBothSidesConfirmation("1-0"), false);
+
+  // 0-1: Black wins -> White is the loser who must confirm
+  assert.equal(getLosingConfirmationSide("0-1"), "white");
+  assert.equal(requiresBothSidesConfirmation("0-1"), false);
+
+  // 1/2-1/2: Draw -> Both must confirm
+  assert.equal(getLosingConfirmationSide("1/2-1/2"), null);
+  assert.equal(requiresBothSidesConfirmation("1/2-1/2"), true);
+  assert.equal(requiresBothSidesConfirmation("1/2"), true);
+
+  // Unknown or null
+  assert.equal(getLosingConfirmationSide(null), null);
+  assert.equal(requiresBothSidesConfirmation(null), false);
+});

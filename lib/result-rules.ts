@@ -97,3 +97,26 @@ export function canCancel(status: MatchStatus): boolean {
 export function statusAfterCancel(): MatchStatus {
   return "unreported";
 }
+
+/**
+ * Returns the losing player side that must confirm a non-draw match.
+ * - '1-0': Black lost, Black must confirm.
+ * - '0-1': White lost, White must confirm.
+ * - '1/2-1/2': Draw, both must confirm (returns null).
+ */
+export function getLosingConfirmationSide(
+  resultCode: ResultCode | string | null,
+): "white" | "black" | null {
+  if (resultCode === "1-0") return "black";
+  if (resultCode === "0-1") return "white";
+  return null;
+}
+
+/**
+ * Checks whether both sides must confirm (draw results).
+ */
+export function requiresBothSidesConfirmation(
+  resultCode: ResultCode | string | null,
+): boolean {
+  return resultCode === "1/2-1/2" || resultCode === "1/2";
+}

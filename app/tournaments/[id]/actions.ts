@@ -336,6 +336,21 @@ export async function submitResult(
     return { error: `Lỗi: ${msg}` };
   }
 
+  // Rule: Only the losing side confirms for win/loss (draw requires both sides).
+  // For '1-0': White won, so Black is the loser who needs to confirm.
+  // Advance through White's turn automatically so match moves to 'pending_black' immediately.
+  if (resultCode === "1-0" && (resultKind === "normal" || resultKind === "resignation")) {
+    const { error: autoWhiteErr } = await admin.rpc("uscc_confirm_result", {
+      p_match_id: matchId,
+      p_actor: referee.userId,
+      p_player_side: "white",
+      p_agreed: true,
+    });
+    if (autoWhiteErr) {
+      console.error("Auto confirm white for 1-0 error:", autoWhiteErr);
+    }
+  }
+
   return { success: true };
 }
 
@@ -377,6 +392,30 @@ export async function confirmSide(
     if (msg.includes("CONFIRMATION_OUT_OF_ORDER")) return { error: "Chưa đến lượt xác nhận của bên này." };
     if (msg.includes("MATCH_NOT_FOUND")) return { error: "Không tìm thấy ván đấu." };
     return { error: `Lỗi: ${msg}` };
+  }
+
+  // Rule: Only the losing side confirms for win/loss (draw requires both sides).
+  // If match was '0-1' (Black won, White was the sole loser to confirm),
+  // White's confirmation completes the player confirmations.
+  // Auto-confirm Black so match status becomes 'official' immediately.
+  if (agreed && side === "white") {
+    const { data: matchData } = await admin
+      .from("matches")
+      .select("result_code")
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (matchData?.result_code === "0-1") {
+      const { error: autoBlackErr } = await admin.rpc("uscc_confirm_result", {
+        p_match_id: matchId,
+        p_actor: referee.userId,
+        p_player_side: "black",
+        p_agreed: true,
+      });
+      if (autoBlackErr) {
+        console.error("Auto confirm black for 0-1 error:", autoBlackErr);
+      }
+    }
   }
 
   return agreed ? { success: true } : { disputed: true };

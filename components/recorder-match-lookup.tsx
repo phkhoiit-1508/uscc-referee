@@ -89,7 +89,35 @@ function MatchCard({
   const isDisputed = status === "disputed" || status === "special_review";
   const confirmationSide = status === "pending_white" ? "white" : status === "pending_black" ? "black" : null;
   const confirmationPlayer = confirmationSide === "white" ? match.white_player : confirmationSide === "black" ? match.black_player : null;
-  const confirmationSideLabel = confirmationSide === "white" ? "Trắng" : "Đen";
+
+  const isDraw = match.result_code === "1/2-1/2" || match.result_code === "1/2";
+  const isWhiteWinner = match.result_code === "1-0";
+  const isBlackWinner = match.result_code === "0-1";
+
+  let confirmationSideLabel = confirmationSide === "white" ? "Trắng" : "Đen";
+  if (confirmationSide === "black" && isWhiteWinner) {
+    confirmationSideLabel = "Đen (Bên thua)";
+  } else if (confirmationSide === "white" && isBlackWinner) {
+    confirmationSideLabel = "Trắng (Bên thua)";
+  } else if (isDraw) {
+    confirmationSideLabel = confirmationSide === "white" ? "Trắng (Lượt 1/2)" : "Đen (Lượt 2/2)";
+  }
+
+  const getStatusBadgeLabel = (st: string, rCode: string | null) => {
+    if (st === "pending_black" && rCode === "1-0") {
+      return "Chờ Đen xác nhận (bên thua)";
+    }
+    if (st === "pending_white" && rCode === "0-1") {
+      return "Chờ Trắng xác nhận (bên thua)";
+    }
+    if (st === "pending_white" && (rCode === "1/2-1/2" || rCode === "1/2")) {
+      return "Chờ Trắng xác nhận (1/2)";
+    }
+    if (st === "pending_black" && (rCode === "1/2-1/2" || rCode === "1/2")) {
+      return "Chờ Đen xác nhận (2/2)";
+    }
+    return STATUS_LABELS[st] ?? st;
+  };
 
   return (
     <div className="rounded border border-slate-200 bg-white p-4">
@@ -136,7 +164,7 @@ function MatchCard({
                 : "bg-amber-100 text-amber-800"
           }`}
         >
-          {STATUS_LABELS[status] ?? status}
+          {getStatusBadgeLabel(status, match.result_code)}
         </span>
       </div>
 
@@ -204,14 +232,26 @@ function MatchCard({
               Quay lại sửa
             </Button>
             <Button type="submit" disabled={submitPending} className="min-h-12 bg-teal-700 text-base text-white hover:bg-teal-800">
-              {submitPending ? "Đang lưu..." : "Đúng, gửi Trắng xác nhận"}
+              {submitPending
+                ? "Đang lưu..."
+                : resultCode === "1-0"
+                  ? "Đúng, gửi Đen xác nhận (bên thua)"
+                  : resultCode === "0-1"
+                    ? "Đúng, gửi Trắng xác nhận (bên thua)"
+                    : "Đúng, gửi Trắng xác nhận (lượt 1/2)"}
             </Button>
           </div>
         </form>
       )}
 
       {submitState.success && (
-        <p className="mt-2 text-sm text-teal-700">Đã nhập — chờ Trắng xác nhận.</p>
+        <p className="mt-2 text-sm text-teal-700">
+          {resultCode === "1-0"
+            ? "Đã lưu — chuyển đến Đen xác nhận (bên thua)."
+            : resultCode === "0-1"
+              ? "Đã lưu — chuyển đến Trắng xác nhận (bên thua)."
+              : "Đã lưu — chuyển đến Trắng xác nhận (lượt 1/2)."}
+        </p>
       )}
 
       {confirmationSide && !confirmState.success && !confirmState.disputed && (
@@ -231,7 +271,11 @@ function MatchCard({
               </p>
             )}
           </div>
-          <p className="text-sm text-slate-600">Trọng tài kiểm tra đúng kỳ thủ trước khi đưa điện thoại.</p>
+          <p className="text-sm text-slate-600">
+            {isDraw
+              ? "Trọng tài kiểm tra đúng kỳ thủ trước khi đưa điện thoại (ván hòa cả 2 bên cùng ký)."
+              : `Trọng tài đưa điện thoại cho kỳ thủ bên ${confirmationSideLabel} kiểm tra và xác nhận.`}
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="submit"
@@ -258,7 +302,9 @@ function MatchCard({
 
       {confirmState.success && (
         <p className="mt-2 text-sm text-teal-700">
-          {status === "pending_black" ? "Kết quả chính thức." : "Đã xác nhận — chờ bên còn lại."}
+          {isDraw && status === "pending_white"
+            ? "Trắng đã xác nhận — chờ Đen xác nhận (lượt 2/2)."
+            : "Kết quả đã chốt chính thức."}
         </p>
       )}
       {confirmState.disputed && (
