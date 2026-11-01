@@ -11,7 +11,6 @@ import {
   type OfficialMatch,
 } from "@/lib/projection-sync";
 import { RESULT_KIND_LABELS } from "@/lib/result-rules";
-import { Button } from "@/components/ui/button";
 
 type ProjectionBoardProps = {
   tournamentId: string;
@@ -24,12 +23,7 @@ type ProjectionBoardProps = {
   initialRound?: number;
 };
 
-type LayoutMode = "two-column" | "single-column" | "paginated";
-type TextDensity = "compact" | "normal";
-
 const POLL_INTERVAL_MS = 2500;
-const BOARDS_PER_PAGE = 20;
-const AUTO_ROTATE_INTERVAL_MS = 12000;
 
 function formatSyncTime(isoString: string): string {
   try {
@@ -46,33 +40,31 @@ function formatSyncTime(isoString: string): string {
 
 function MatchSubTable({
   matches,
-  density = "compact",
+  isCompact = true,
 }: {
   matches: OfficialMatch[];
-  density?: TextDensity;
+  isCompact?: boolean;
 }) {
   if (matches.length === 0) return null;
 
-  const isCompact = density === "compact";
-
   return (
-    <div className="overflow-hidden rounded-md border border-slate-800 bg-slate-900/80 shadow-sm">
+    <div className="overflow-hidden rounded-md border border-slate-800 bg-slate-900/90 shadow-sm">
       <table className="w-full text-left">
         <thead className="border-b border-slate-800 bg-slate-900 text-[10px] font-semibold uppercase tracking-wider text-slate-400 sm:text-[11px]">
           <tr>
-            <th scope="col" className="w-10 py-1.5 pl-2 pr-1 text-center sm:w-12">
+            <th scope="col" className="w-10 py-1 pl-2 pr-1 text-center sm:w-12">
               Bàn
             </th>
-            <th scope="col" className="py-1.5 px-2">
+            <th scope="col" className="py-1 px-2">
               Trắng
             </th>
-            <th scope="col" className="w-20 py-1.5 px-1.5 text-center sm:w-24">
+            <th scope="col" className="w-20 py-1 px-1.5 text-center sm:w-24">
               Kết quả
             </th>
-            <th scope="col" className="py-1.5 px-2">
+            <th scope="col" className="py-1 px-2">
               Đen
             </th>
-            <th scope="col" className="w-20 py-1.5 pr-2 pl-1 text-center sm:w-24">
+            <th scope="col" className="w-20 py-1 pr-2 pl-1 text-center sm:w-24">
               Trạng thái
             </th>
           </tr>
@@ -83,12 +75,12 @@ function MatchSubTable({
             return (
               <tr
                 key={match.id}
-                className="transition-colors hover:bg-slate-800/50"
+                className="transition-colors hover:bg-slate-800/60"
               >
                 <td
                   className={`pl-2 pr-1 text-center font-bold text-slate-300 ${
                     isCompact
-                      ? "py-[2px] text-[11px] sm:py-1 sm:text-xs"
+                      ? "py-[2px] text-[11px] sm:py-[3px] sm:text-xs"
                       : "py-1.5 text-xs sm:py-2 sm:text-sm"
                   }`}
                 >
@@ -97,7 +89,7 @@ function MatchSubTable({
                 <td
                   className={`px-2 font-semibold text-slate-100 ${
                     isCompact
-                      ? "py-[2px] text-[11px] sm:py-1 sm:text-xs"
+                      ? "py-[2px] text-[11px] sm:py-[3px] sm:text-xs"
                       : "py-1.5 text-xs sm:py-2 sm:text-sm"
                   }`}
                 >
@@ -111,7 +103,7 @@ function MatchSubTable({
                 <td
                   className={`px-1.5 text-center font-bold text-teal-300 whitespace-nowrap ${
                     isCompact
-                      ? "py-[2px] text-[11px] sm:py-1 sm:text-xs"
+                      ? "py-[2px] text-[11px] sm:py-[3px] sm:text-xs"
                       : "py-1.5 text-xs sm:py-2 sm:text-sm"
                   }`}
                 >
@@ -133,7 +125,7 @@ function MatchSubTable({
                 <td
                   className={`px-2 font-semibold text-slate-100 ${
                     isCompact
-                      ? "py-[2px] text-[11px] sm:py-1 sm:text-xs"
+                      ? "py-[2px] text-[11px] sm:py-[3px] sm:text-xs"
                       : "py-1.5 text-xs sm:py-2 sm:text-sm"
                   }`}
                 >
@@ -151,7 +143,7 @@ function MatchSubTable({
                 <td
                   className={`pr-2 pl-1 text-center whitespace-nowrap ${
                     isCompact
-                      ? "py-[2px] text-[9px] sm:py-1 sm:text-[10px]"
+                      ? "py-[2px] text-[9px] sm:py-[3px] sm:text-[10px]"
                       : "py-1.5 text-[10px] sm:py-2 sm:text-[11px]"
                   }`}
                 >
@@ -200,11 +192,20 @@ export function ProjectionBoard({
     createInitialSyncState(initialRound, initialMatches, initialSyncedAt),
   );
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>("two-column");
-  const [density, setDensity] = useState<TextDensity>("compact");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [autoRotate, setAutoRotate] = useState(false);
+  // Control panel configuration states
+  const [isControlVisible, setIsControlVisible] = useState(true);
+  const [aspectRatio, setAspectRatio] = useState<string>("auto");
+  const [displayScale, setDisplayScale] = useState<number>(100);
+  const [paginationMode, setPaginationMode] = useState<string>("players_per_page");
+  const [playersPerPage, setPlayersPerPage] = useState<number>(80); // 80 players = 40 boards
+  const [columnsCount, setColumnsCount] = useState<number>(2);
+  const [allowVerticalScroll, setAllowVerticalScroll] = useState<boolean>(false);
+
+  // Pagination & Auto-rotate states
+  const [autoPageFlip, setAutoPageFlip] = useState<boolean>(false);
+  const [pageFlipSeconds, setPageFlipSeconds] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const inFlightRef = useRef(false);
@@ -228,9 +229,25 @@ export function ProjectionBoard({
         await document.exitFullscreen();
       }
     } catch {
-      // User gesture or permissions prevented fullscreen
+      // User gesture prevented
     }
   };
+
+  // Keyboard shortcut F11 & arrow keys for page flip
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F11") {
+        e.preventDefault();
+        void toggleFullscreen();
+      } else if (e.key === "ArrowLeft") {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      } else if (e.key === "ArrowRight") {
+        setCurrentPage((p) => p + 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const fetchRoundMatches = useCallback(
     async (round: number, reqId: number) => {
@@ -323,280 +340,429 @@ export function ProjectionBoard({
   const isDisconnected = connectionStatus === "disconnected";
   const officialCount = matches.filter((m) => m.status === "official").length;
 
-  const totalPages = Math.max(1, Math.ceil(matches.length / BOARDS_PER_PAGE));
+  // Compute pagination
+  const boardsPerPage = useMemo(() => {
+    if (paginationMode === "all") return Math.max(1, matches.length);
+    // 2 players per board
+    return Math.max(1, Math.round(playersPerPage / 2));
+  }, [paginationMode, playersPerPage, matches.length]);
 
-  // Auto-rotate effect for paginated mode
+  const totalPages = Math.max(1, Math.ceil(matches.length / boardsPerPage));
+
+  // Auto-rotate effect
   useEffect(() => {
-    if (!autoRotate || layoutMode !== "paginated" || totalPages <= 1) return;
+    if (!autoPageFlip || totalPages <= 1) return;
 
     const timer = window.setInterval(() => {
       setCurrentPage((prev) => (prev >= totalPages ? 1 : prev + 1));
-    }, AUTO_ROTATE_INTERVAL_MS);
+    }, pageFlipSeconds * 1000);
 
     return () => window.clearInterval(timer);
-  }, [autoRotate, layoutMode, totalPages]);
+  }, [autoPageFlip, totalPages, pageFlipSeconds]);
 
-  // Two-column split
-  const { leftColumn, rightColumn } = useMemo(() => {
-    if (matches.length <= 1) {
-      return { leftColumn: matches, rightColumn: [] };
+  // Sliced matches for current page
+  const pageMatches = useMemo(() => {
+    if (paginationMode === "all") return matches;
+    const effectivePage = Math.min(currentPage, totalPages);
+    const start = (effectivePage - 1) * boardsPerPage;
+    return matches.slice(start, start + boardsPerPage);
+  }, [matches, currentPage, totalPages, boardsPerPage, paginationMode]);
+
+  // Divide into N columns based on columnsCount
+  const columnSlices = useMemo(() => {
+    if (pageMatches.length === 0) return [];
+    if (columnsCount <= 1) return [pageMatches];
+
+    const count = Math.min(columnsCount, pageMatches.length);
+    const result: OfficialMatch[][] = [];
+    const chunkSize = Math.ceil(pageMatches.length / count);
+
+    for (let i = 0; i < count; i++) {
+      const slice = pageMatches.slice(i * chunkSize, (i + 1) * chunkSize);
+      if (slice.length > 0) result.push(slice);
     }
-    const mid = Math.ceil(matches.length / 2);
-    return {
-      leftColumn: matches.slice(0, mid),
-      rightColumn: matches.slice(mid),
-    };
-  }, [matches]);
+    return result;
+  }, [pageMatches, columnsCount]);
 
-  // Paginated matches
-  const paginatedMatches = useMemo(() => {
-    const start = (currentPage - 1) * BOARDS_PER_PAGE;
-    return matches.slice(start, start + BOARDS_PER_PAGE);
-  }, [matches, currentPage]);
+  // Aspect ratio wrapper styles
+  const getAspectRatioClasses = () => {
+    switch (aspectRatio) {
+      case "16:9":
+        return "aspect-[16/9] w-full max-w-[1920px]";
+      case "4:3":
+        return "aspect-[4/3] w-full max-w-[1400px]";
+      case "16:10":
+        return "aspect-[16/10] w-full max-w-[1920px]";
+      default:
+        return "w-full max-w-[1920px]";
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-slate-950 px-2 py-2 sm:px-4 sm:py-3 text-white transition-all">
-      <div className="mx-auto w-full max-w-[1920px]">
-        {/* Streamlined Compact Top Bar */}
-        <header
-          className="flex flex-wrap items-center justify-between gap-2.5 border-b-2 border-slate-700 pb-2.5"
-          style={{ borderBottomColor: primaryColor ?? "#14B8A6" }}
-        >
-          {/* Left Title & Status Badges */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Top Controller Bar - Matches Requested UI Mockup */}
+      <div
+        className="sticky top-0 z-50 border-t-[3px] border-b border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-800 shadow-sm transition-all sm:px-5"
+        style={{ borderTopColor: primaryColor ?? "#0284c7" }}
+      >
+        {/* Row 1: Back Link & Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
-            {!isFullscreen && (
-              <Link
-                href={`/tournaments/${tournamentId}`}
-                className="text-xs text-slate-400 hover:text-white"
-                title="Quay lại giải đấu"
-              >
-                ← Thoát
-              </Link>
-            )}
-
-            {logoUrl && (
-              <div
-                role="img"
-                aria-label={`Logo ${tournamentName}`}
-                className="h-7 w-7 shrink-0 bg-contain bg-center bg-no-repeat sm:h-8 sm:w-8"
-                style={{ backgroundImage: `url(${JSON.stringify(logoUrl)})` }}
-              />
-            )}
-
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white sm:text-xl">
-                {tournamentName}
-              </h1>
-              <span className="rounded bg-teal-950/90 px-2 py-0.5 text-xs font-semibold text-teal-300 ring-1 ring-teal-700/60">
-                Vòng {selectedRound}
-              </span>
-              <span className="hidden rounded bg-slate-900 px-2 py-0.5 text-xs font-medium text-slate-300 ring-1 ring-slate-800 sm:inline-block">
-                {officialCount}/{matches.length} bàn đã chốt
-              </span>
-            </div>
-          </div>
-
-          {/* Right Controls */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Round Dropdown */}
-            <select
-              aria-label="Chọn vòng"
-              value={selectedRound}
-              onChange={(e) => onSelectRound(Number(e.target.value))}
-              className="h-7 rounded border border-slate-700 bg-slate-900 px-2 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-teal-400"
+            <Link
+              href={`/tournaments/${tournamentId}`}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950"
             >
-              {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => (
-                <option key={r} value={r}>
-                  Vòng {r}
-                </option>
-              ))}
-            </select>
+              <span className="text-sm">←</span>
+              <span>Điều hành giải đấu</span>
+            </Link>
 
-            {/* Density Toggle (Chữ nhỏ / Vừa) */}
-            <div className="flex items-center rounded border border-slate-800 bg-slate-900 p-0.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setDensity("compact")}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
-                  density === "compact"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Cỡ chữ nhỏ gọn — vừa trọn vẹn 1 trang không cần cuộn"
-              >
-                Gọn
-              </button>
-              <button
-                type="button"
-                onClick={() => setDensity("normal")}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
-                  density === "normal"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Cỡ chữ vừa"
-              >
-                Vừa
-              </button>
-            </div>
+            <span className="text-slate-300">|</span>
 
-            {/* Layout Mode Switcher */}
-            <div className="flex items-center rounded border border-slate-800 bg-slate-900 p-0.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setLayoutMode("two-column")}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
-                  layoutMode === "two-column"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Chia 2 cột song song (tối ưu máy chiếu 16:9)"
-              >
-                2 Cột
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayoutMode("single-column")}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
-                  layoutMode === "single-column"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="1 Cột"
-              >
-                1 Cột
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayoutMode("paginated")}
-                className={`rounded px-2 py-0.5 font-medium transition-colors ${
-                  layoutMode === "paginated"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Phân trang"
-              >
-                Trang
-              </button>
-            </div>
-
-            {/* Fullscreen Button */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={toggleFullscreen}
-              className="h-7 border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white"
-              title={isFullscreen ? "Thoát toàn màn hình (Esc)" : "Toàn màn hình"}
-            >
-              {isFullscreen ? (
-                <>
-                  <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span>Thoát</span>
-                </>
-              ) : (
-                <>
-                  <svg className="mr-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                  <span>Full Screen</span>
-                </>
-              )}
-            </Button>
+            {/* Tournament title */}
+            <span className="hidden text-xs font-bold text-slate-900 md:inline-block">
+              {tournamentName}
+            </span>
 
             {/* Live Indicator */}
-            <div className="flex items-center gap-1.5 text-[11px]" role="status">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                connectionStatus === "connected"
+                  ? "bg-teal-100 text-teal-800"
+                  : "bg-amber-100 text-amber-800 animate-pulse"
+              }`}
+            >
               <span
-                className={`h-2 w-2 rounded-full ${
-                  connectionStatus === "connected"
-                    ? "bg-teal-400"
-                    : connectionStatus === "disconnected"
-                      ? "bg-amber-400 animate-pulse"
-                      : "bg-slate-500"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  connectionStatus === "connected" ? "bg-teal-600" : "bg-amber-600"
                 }`}
               />
-              {connectionStatus === "connected" && lastSuccessfulSync && (
-                <span className="hidden text-slate-400 xl:inline">
-                  {formatSyncTime(lastSuccessfulSync)}
-                </span>
+              {connectionStatus === "connected" ? "Realtime" : "Mất kết nối"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* View Boards Dropdown (Chọn Vòng) */}
+            <div className="flex items-center rounded border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm hover:bg-slate-50">
+              <svg
+                className="mr-1.5 h-3.5 w-3.5 text-slate-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                />
+              </svg>
+              <span className="mr-1 font-medium text-slate-700">Xem bàn đấu:</span>
+              <select
+                value={selectedRound}
+                onChange={(e) => onSelectRound(Number(e.target.value))}
+                className="bg-transparent font-bold text-slate-900 outline-none cursor-pointer"
+              >
+                {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => (
+                  <option key={r} value={r}>
+                    Vòng {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Toggle Control Bar Button */}
+            <button
+              type="button"
+              onClick={() => setIsControlVisible((prev) => !prev)}
+              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              <svg
+                className="h-3.5 w-3.5 text-slate-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
+              </svg>
+              <span>{isControlVisible ? "Ẩn thanh điều khiển ⌵" : "Hiện thanh điều khiển ⌃"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Control Panels (Row 2 & Row 3) */}
+        {isControlVisible && (
+          <div className="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-2">
+            {/* Control Row 1: Aspect Ratio, Scale, Pagination Type, Items/Page, Columns, Scroll */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* Tỉ lệ khung hình */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-slate-600">Tỉ lệ khung hình</span>
+                <select
+                  value={aspectRatio}
+                  onChange={(e) => setAspectRatio(e.target.value)}
+                  className="rounded border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-900 shadow-sm outline-none focus:border-sky-500"
+                >
+                  <option value="auto">Vừa khít màn hình (Auto Fullscreen)</option>
+                  <option value="16:9">16:9 (Máy chiếu Wide)</option>
+                  <option value="4:3">4:3 (Máy chiếu vuông)</option>
+                  <option value="16:10">16:10</option>
+                  <option value="custom">Tự do</option>
+                </select>
+              </div>
+
+              {/* Cỡ hiển thị */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-slate-600">Cỡ hiển thị</span>
+                <select
+                  value={displayScale}
+                  onChange={(e) => setDisplayScale(Number(e.target.value))}
+                  className="rounded border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-900 shadow-sm outline-none focus:border-sky-500"
+                >
+                  <option value={75}>75%</option>
+                  <option value={85}>85%</option>
+                  <option value={90}>90%</option>
+                  <option value={100}>100%</option>
+                  <option value={110}>110%</option>
+                  <option value={125}>125%</option>
+                  <option value={150}>150%</option>
+                </select>
+              </div>
+
+              {/* Chia trang theo */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-slate-600">Chia trang theo</span>
+                <select
+                  value={paginationMode}
+                  onChange={(e) => {
+                    setPaginationMode(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="rounded border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-900 shadow-sm outline-none focus:border-sky-500"
+                >
+                  <option value="players_per_page">Số người mỗi trang</option>
+                  <option value="all">Tất cả trong 1 trang</option>
+                </select>
+              </div>
+
+              {/* Người/trang */}
+              {paginationMode === "players_per_page" && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-slate-600">Người/trang</span>
+                  <select
+                    value={playersPerPage}
+                    onChange={(e) => {
+                      setPlayersPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="rounded border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-900 shadow-sm outline-none focus:border-sky-500"
+                  >
+                    <option value={20}>20 người/trang (10 bàn)</option>
+                    <option value={40}>40 người/trang (20 bàn)</option>
+                    <option value={60}>60 người/trang (30 bàn)</option>
+                    <option value={80}>80 người/trang (40 bàn)</option>
+                    <option value={100}>100 người/trang (50 bàn)</option>
+                  </select>
+                </div>
               )}
-              {connectionStatus === "disconnected" && (
-                <span className="font-medium text-amber-300">Mất kết nối</span>
-              )}
+
+              {/* Số cột */}
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-slate-600">Số cột</span>
+                <select
+                  value={columnsCount}
+                  onChange={(e) => setColumnsCount(Number(e.target.value))}
+                  className="rounded border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-900 shadow-sm outline-none focus:border-sky-500"
+                >
+                  <option value={1}>1 cột</option>
+                  <option value={2}>2 cột</option>
+                  <option value={3}>3 cột</option>
+                  <option value={4}>4 cột</option>
+                </select>
+              </div>
+
+              {/* Cho phép cuộn dọc */}
+              <label className="flex cursor-pointer items-center gap-1.5 font-medium text-slate-700 hover:text-slate-950">
+                <input
+                  type="checkbox"
+                  checked={allowVerticalScroll}
+                  onChange={(e) => setAllowVerticalScroll(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-0"
+                />
+                <span>Cho phép cuộn dọc (giữ chữ lớn)</span>
+              </label>
+            </div>
+
+            {/* Control Row 2: Auto flip, Flip interval, Prev, Next, Current Page Badge, Fullscreen Button, Hint */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1 border-t border-slate-200/70">
+              {/* Tự động chuyển trang */}
+              <label className="flex cursor-pointer items-center gap-1.5 font-medium text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={autoPageFlip}
+                  onChange={(e) => setAutoPageFlip(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-0"
+                />
+                <span>Tự động chuyển trang</span>
+              </label>
+
+              {/* Chuyển sau */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-600">Chuyển sau</span>
+                <select
+                  value={pageFlipSeconds}
+                  onChange={(e) => setPageFlipSeconds(Number(e.target.value))}
+                  disabled={!autoPageFlip}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 font-semibold text-slate-900 shadow-sm outline-none disabled:opacity-50"
+                >
+                  <option value={5}>5 giây</option>
+                  <option value={8}>8 giây</option>
+                  <option value={10}>10 giây</option>
+                  <option value={12}>12 giây</option>
+                  <option value={15}>15 giây</option>
+                  <option value={20}>20 giây</option>
+                  <option value={30}>30 giây</option>
+                </select>
+              </div>
+
+              {/* Trang trước */}
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="rounded border border-slate-300 bg-white px-3 py-1 font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40"
+              >
+                Trang trước
+              </button>
+
+              {/* Trang sau */}
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded border border-slate-300 bg-white px-3 py-1 font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40"
+              >
+                Trang sau
+              </button>
+
+              {/* Trang hiện tại badge */}
+              <span className="rounded bg-slate-900 px-3 py-1 font-bold text-white shadow-sm">
+                Trang {currentPage}/{totalPages}
+              </span>
+
+              {/* Toàn màn hình (F11) */}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="flex items-center gap-1 rounded border border-slate-300 bg-white px-3 py-1 font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                <svg
+                  className="h-3.5 w-3.5 text-slate-700"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  />
+                </svg>
+                <span>{isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình (F11)"}</span>
+              </button>
+
+              {/* Helper text hint */}
+              <span className="text-[11px] text-slate-500 xl:inline-block hidden">
+                Vừa khít tự thu chữ theo số dòng; bật cuộn để giữ cỡ lớn.
+              </span>
             </div>
           </div>
-        </header>
+        )}
+      </div>
 
-        {/* Network alert banner */}
+      {/* Main Projector Screen Container */}
+      <main
+        className={`flex-1 p-2 sm:p-3 mx-auto ${getAspectRatioClasses()} ${
+          allowVerticalScroll ? "overflow-y-auto" : "overflow-hidden"
+        }`}
+      >
+        {/* Network disconnect alert banner */}
         {isDisconnected && (
           <aside
             role="alert"
-            className="mt-2 rounded border border-amber-600 bg-amber-950/80 p-2 text-xs text-amber-200"
+            className="mb-2 rounded border border-amber-600 bg-amber-950/80 p-2 text-xs text-amber-200"
           >
             ⚠️ Mất kết nối — dữ liệu hiển thị lúc{" "}
             {lastSuccessfulSync ? formatSyncTime(lastSuccessfulSync) : "chưa rõ"}.
           </aside>
         )}
 
-        {/* Paginated mode sub-controls if active */}
-        {layoutMode === "paginated" && totalPages > 1 && (
-          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-            <span className="text-slate-300">
-              Trang {currentPage}/{totalPages} (Bàn {(currentPage - 1) * BOARDS_PER_PAGE + 1}–
-              {Math.min(currentPage * BOARDS_PER_PAGE, matches.length)})
+        {/* Tournament Subhead Indicator */}
+        <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            {logoUrl && (
+              <div
+                role="img"
+                aria-label={`Logo ${tournamentName}`}
+                className="h-5 w-5 shrink-0 bg-contain bg-center bg-no-repeat"
+                style={{ backgroundImage: `url(${JSON.stringify(logoUrl)})` }}
+              />
+            )}
+            <span className="font-bold text-slate-200">{tournamentName}</span>
+            <span>·</span>
+            <span className="text-teal-400 font-semibold">Vòng {selectedRound}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="rounded bg-slate-900 px-2 py-0.5 text-[11px] text-slate-300 ring-1 ring-slate-800">
+              {officialCount}/{matches.length} bàn đã chốt kết quả
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="h-6 rounded border border-slate-700 bg-slate-900 px-2 font-medium disabled:opacity-40"
-              >
-                ← Trước
-              </button>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="h-6 rounded border border-slate-700 bg-slate-900 px-2 font-medium disabled:opacity-40"
-              >
-                Sau →
-              </button>
-              <label className="ml-2 flex cursor-pointer items-center gap-1 text-slate-400 hover:text-white">
-                <input
-                  type="checkbox"
-                  checked={autoRotate}
-                  onChange={(e) => setAutoRotate(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-900 text-teal-600 focus:ring-0"
-                />
-                <span>Tự lật trang (12s)</span>
-              </label>
-            </div>
+            {lastSuccessfulSync && (
+              <span className="text-[11px] text-slate-500">
+                Đồng bộ: {formatSyncTime(lastSuccessfulSync)}
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Main Matches Display */}
-        {matches.length === 0 ? (
-          <p className="mt-8 text-center text-sm text-slate-400">
-            Chưa có cặp đấu nào cho Vòng {selectedRound}.
-          </p>
-        ) : layoutMode === "two-column" && matches.length > 1 ? (
-          <div className="mt-2 grid grid-cols-1 items-start gap-2 lg:grid-cols-2 lg:gap-3">
-            <MatchSubTable matches={leftColumn} density={density} />
-            <MatchSubTable matches={rightColumn} density={density} />
-          </div>
-        ) : layoutMode === "paginated" ? (
-          <div className="mt-2">
-            <MatchSubTable matches={paginatedMatches} density={density} />
-          </div>
-        ) : (
-          <div className="mt-2">
-            <MatchSubTable matches={matches} density={density} />
-          </div>
-        )}
-      </div>
-    </main>
+        {/* Content Box with Display Scale applied */}
+        <div
+          style={{
+            zoom: displayScale !== 100 ? `${displayScale}%` : undefined,
+          }}
+          className="transition-transform origin-top"
+        >
+          {matches.length === 0 ? (
+            <p className="mt-12 text-center text-sm text-slate-400">
+              Chưa có cặp đấu nào cho Vòng {selectedRound}.
+            </p>
+          ) : (
+            <div
+              className={`grid gap-2 ${
+                columnSlices.length === 1
+                  ? "grid-cols-1"
+                  : columnSlices.length === 2
+                    ? "grid-cols-1 lg:grid-cols-2"
+                    : columnSlices.length === 3
+                      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                      : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+              }`}
+            >
+              {columnSlices.map((slice, idx) => (
+                <MatchSubTable
+                  key={idx}
+                  matches={slice}
+                  isCompact={!allowVerticalScroll}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
