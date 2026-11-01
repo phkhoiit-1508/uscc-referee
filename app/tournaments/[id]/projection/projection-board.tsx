@@ -53,24 +53,20 @@ function MatchSubTableLight({
 }) {
   if (matches.length === 0) return null;
 
-  // Dynamic typography: scales up when there are fewer rows so text fills the space generously
+  // Dynamic typography: calibrated so that full Vietnamese names (4-5 words) fit completely without truncation
   const fontSizeClass =
     maxRows <= 8
-      ? "text-base sm:text-lg md:text-xl font-semibold"
+      ? "text-sm sm:text-base font-semibold"
       : maxRows <= 15
-        ? "text-sm sm:text-base md:text-[17px] font-semibold"
+        ? "text-xs sm:text-[13px] md:text-sm font-semibold"
         : maxRows <= 22
-          ? "text-xs sm:text-sm md:text-base font-semibold"
-          : "text-[11px] sm:text-xs font-semibold";
+          ? "text-[11px] sm:text-xs md:text-[13px] font-semibold"
+          : "text-[10px] sm:text-[11px] font-semibold";
 
   const boardSizeClass =
-    maxRows <= 8
-      ? "text-lg sm:text-xl md:text-2xl font-bold"
-      : maxRows <= 15
-        ? "text-base sm:text-lg md:text-xl font-bold"
-        : maxRows <= 22
-          ? "text-xs sm:text-sm md:text-base font-bold"
-          : "text-[11px] sm:text-xs font-bold";
+    maxRows <= 15
+      ? "text-xs sm:text-sm md:text-base font-bold"
+      : "text-[11px] sm:text-xs font-bold";
 
   const headerSizeClass =
     maxRows <= 15 ? "text-xs sm:text-sm font-bold" : "text-[11px] sm:text-xs font-bold";
@@ -83,23 +79,23 @@ function MatchSubTableLight({
     >
       <table className="w-full h-full table-fixed text-left border-collapse">
         <thead className="shrink-0 border-b border-slate-200 bg-slate-100 text-slate-700">
-          <tr className={`h-8 sm:h-9 ${headerSizeClass}`}>
-            <th scope="col" className="w-[8%] py-1 px-1 text-center font-bold">
+          <tr className={`h-7 sm:h-8 ${headerSizeClass}`}>
+            <th scope="col" className="w-[5%] py-1 px-1 text-center font-bold">
               Bàn
             </th>
-            <th scope="col" className="w-[38%] py-1 px-2.5 font-bold">
+            <th scope="col" className="w-[39%] py-1 px-2 font-bold">
               Trắng
             </th>
-            <th scope="col" className="w-[7%] py-1 px-1 text-center font-semibold text-slate-500">
+            <th scope="col" className="w-[4%] py-1 px-0.5 text-center font-semibold text-slate-500">
               Điểm
             </th>
-            <th scope="col" className="w-[12%] py-1 px-1 text-center font-bold text-slate-900">
+            <th scope="col" className="w-[9%] py-1 px-1 text-center font-bold text-slate-900">
               Kết quả
             </th>
-            <th scope="col" className="w-[7%] py-1 px-1 text-center font-semibold text-slate-500">
+            <th scope="col" className="w-[4%] py-1 px-0.5 text-center font-semibold text-slate-500">
               Điểm
             </th>
-            <th scope="col" className="w-[38%] py-1 px-2.5 font-bold">
+            <th scope="col" className="w-[39%] py-1 px-2 font-bold">
               Đen
             </th>
           </tr>
@@ -127,15 +123,15 @@ function MatchSubTableLight({
                 </td>
 
                 {/* Trắng */}
-                <td className={`px-2.5 text-slate-950 align-middle ${fontSizeClass}`}>
-                  <span className="line-clamp-1" title={match.white_player?.full_name ?? "—"}>
+                <td className={`px-2 text-slate-950 align-middle ${fontSizeClass}`}>
+                  <span className="truncate block" title={match.white_player?.full_name ?? "—"}>
                     {match.white_player?.full_name ?? "—"}
                   </span>
                 </td>
 
                 {/* Điểm Trắng */}
                 <td
-                  className={`px-1 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
+                  className={`px-0.5 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
                 >
                   0
                 </td>
@@ -166,15 +162,15 @@ function MatchSubTableLight({
 
                 {/* Điểm Đen */}
                 <td
-                  className={`px-1 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
+                  className={`px-0.5 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
                 >
                   0
                 </td>
 
                 {/* Đen */}
-                <td className={`px-2.5 text-slate-950 align-middle ${fontSizeClass}`}>
+                <td className={`px-2 text-slate-950 align-middle ${fontSizeClass}`}>
                   <span
-                    className="line-clamp-1"
+                    className="truncate block"
                     title={
                       match.black_player?.full_name ??
                       (match.result_kind === "bye" ? "Miễn đấu (Bye)" : "—")
