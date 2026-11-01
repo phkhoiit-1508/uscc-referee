@@ -78,24 +78,32 @@ function MatchSubTableLight({
       }`}
     >
       <table className="w-full h-full table-fixed text-left border-collapse">
+        <colgroup>
+          <col style={{ width: "42px" }} />
+          <col style={{ width: "calc(50% - 106px)" }} />
+          <col style={{ width: "44px" }} />
+          <col style={{ width: "84px" }} />
+          <col style={{ width: "44px" }} />
+          <col style={{ width: "calc(50% - 106px)" }} />
+        </colgroup>
         <thead className="shrink-0 border-b border-slate-200 bg-slate-100 text-slate-700">
           <tr className={`h-7 sm:h-8 ${headerSizeClass}`}>
-            <th scope="col" className="w-[5%] py-1 px-1 text-center font-bold">
+            <th scope="col" className="px-1 text-center font-bold whitespace-nowrap">
               Bàn
             </th>
-            <th scope="col" className="w-[39%] py-1 px-2 font-bold">
+            <th scope="col" className="pl-2.5 pr-1 text-left font-bold whitespace-nowrap">
               Trắng
             </th>
-            <th scope="col" className="w-[4%] py-1 px-0.5 text-center font-semibold text-slate-500">
+            <th scope="col" className="px-1 text-center font-semibold text-slate-500 whitespace-nowrap">
               Điểm
             </th>
-            <th scope="col" className="w-[9%] py-1 px-1 text-center font-bold text-slate-900">
+            <th scope="col" className="px-1 text-center font-bold text-slate-900 whitespace-nowrap">
               Kết quả
             </th>
-            <th scope="col" className="w-[4%] py-1 px-0.5 text-center font-semibold text-slate-500">
+            <th scope="col" className="px-1 text-center font-semibold text-slate-500 whitespace-nowrap">
               Điểm
             </th>
-            <th scope="col" className="w-[39%] py-1 px-2 font-bold">
+            <th scope="col" className="pr-2.5 pl-1 text-right font-bold whitespace-nowrap">
               Đen
             </th>
           </tr>
@@ -122,8 +130,8 @@ function MatchSubTableLight({
                   {match.board_number}
                 </td>
 
-                {/* Trắng */}
-                <td className={`px-2 text-slate-950 align-middle ${fontSizeClass}`}>
+                {/* Trắng (căn lề trái) */}
+                <td className={`pl-2.5 pr-1 text-left text-slate-950 align-middle ${fontSizeClass}`}>
                   <span className="truncate block" title={match.white_player?.full_name ?? "—"}>
                     {match.white_player?.full_name ?? "—"}
                   </span>
@@ -131,7 +139,7 @@ function MatchSubTableLight({
 
                 {/* Điểm Trắng */}
                 <td
-                  className={`px-0.5 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
+                  className={`px-1 text-center font-medium text-slate-500 align-middle whitespace-nowrap ${fontSizeClass}`}
                 >
                   0
                 </td>
@@ -162,15 +170,15 @@ function MatchSubTableLight({
 
                 {/* Điểm Đen */}
                 <td
-                  className={`px-0.5 text-center font-medium text-slate-500 align-middle ${fontSizeClass}`}
+                  className={`px-1 text-center font-medium text-slate-500 align-middle whitespace-nowrap ${fontSizeClass}`}
                 >
                   0
                 </td>
 
-                {/* Đen */}
-                <td className={`px-2 text-slate-950 align-middle ${fontSizeClass}`}>
+                {/* Đen (căn lề phải theo yêu cầu của trọng tài) */}
+                <td className={`pr-2.5 pl-1 text-right text-slate-950 align-middle ${fontSizeClass}`}>
                   <span
-                    className="truncate block"
+                    className="truncate block text-right"
                     title={
                       match.black_player?.full_name ??
                       (match.result_kind === "bye" ? "Miễn đấu (Bye)" : "—")
