@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { requireReferee } from "@/lib/require-referee";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSafeHttpUrl } from "@/lib/tournament-validation";
+import { isSafeHttpUrl, isValidUuid } from "@/lib/tournament-validation";
 
 export type TournamentFormState = {
   success?: boolean;
@@ -184,3 +184,126 @@ export async function updateTournament(
   revalidatePath(`/tournaments/${tournamentId}/projection`);
   return { success: true };
 }
+
+export type DeleteTournamentState = {
+  success?: boolean;
+  error?: string;
+};
+
+export async function deleteTournament(
+  _state: DeleteTournamentState,
+  formData: FormData,
+): Promise<DeleteTournamentState> {
+  let referee;
+
+  try {
+    referee = await requireReferee(["technical"]);
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      redirect("/login");
+    }
+
+    return { error: "Chỉ trọng tài kỹ thuật được xóa giải đấu." };
+  }
+
+  const tournamentId = formData.get("tournamentId");
+  if (typeof tournamentId !== "string" || !isValidUuid(tournamentId)) {
+    return { error: "Mã giải đấu không hợp lệ." };
+  }
+
+  const id = tournamentId.trim();
+  const admin = createAdminClient();
+
+  // Try calling the uscc_delete_tournament RPC first
+  const { error: rpcError } = await admin.rpc("uscc_delete_tournament", {
+    p_tournament_id: id,
+    p_actor: referee.userId,
+  });
+
+  if (rpcError) {
+    const isRpcMissing =
+      rpcError.message.includes("Could not find the function") ||
+      rpcError.message.includes("schema cache") ||
+      rpcError.message.includes("does not exist") ||
+      (rpcError as { code?: string }).code === "PGRST202";
+
+    if (isRpcMissing) {
+      // 0. Verify tournament exists
+      const { data: tourney, error: tourneyError } = await admin
+        .from("tournaments")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (tourneyError) {
+        return { error: `Lỗi truy vấn giải: ${tourneyError.message}` };
+      }
+      if (!tourney) {
+        return { error: "Không tìm thấy giải đấu cần xóa." };
+      }
+
+      // 1. Delete matches
+      const { error: matchesErr } = await admin
+        .from("matches")
+        .delete()
+        .eq("tournament_id", id);
+
+      if (matchesErr) {
+        if (
+          matchesErr.message.includes("violates foreign key constraint") ||
+          matchesErr.message.includes("APPEND_ONLY_TABLE") ||
+          matchesErr.message.includes("result_events")
+        ) {
+          return {
+            error:
+              "Không thể xóa giải: Giải đấu đã có biên bản ván đấu được bảo vệ bởi nhật ký kiểm toán. Cần áp dụng migration uscc_delete_tournament.",
+          };
+        }
+        return { error: `Không thể xóa ván đấu: ${matchesErr.message}` };
+      }
+
+      // 2. Delete players
+      const { error: playersErr } = await admin
+        .from("players")
+        .delete()
+        .eq("tournament_id", id);
+
+      if (playersErr) {
+        return { error: `Không thể xóa kỳ thủ: ${playersErr.message}` };
+      }
+
+      // 3. Delete import_batches
+      const { error: batchesErr } = await admin
+        .from("import_batches")
+        .delete()
+        .eq("tournament_id", id);
+
+      if (batchesErr) {
+        return { error: `Không thể xóa lịch sử nhập: ${batchesErr.message}` };
+      }
+
+      // 4. Delete tournament
+      const { error: tournErr } = await admin
+        .from("tournaments")
+        .delete()
+        .eq("id", id);
+
+      if (tournErr) {
+        return { error: `Không thể xóa giải: ${tournErr.message}` };
+      }
+    } else {
+      if (rpcError.message.includes("TOURNAMENT_NOT_FOUND")) {
+        return { error: "Không tìm thấy giải đấu cần xóa." };
+      }
+      if (rpcError.message.includes("TECHNICAL_REFEREE_REQUIRED")) {
+        return { error: "Chỉ trọng tài kỹ thuật mới có quyền xóa giải đấu." };
+      }
+      return { error: `Lỗi khi xóa giải đấu: ${rpcError.message}` };
+    }
+  }
+
+  revalidatePath("/tournaments");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+

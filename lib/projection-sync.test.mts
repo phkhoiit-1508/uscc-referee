@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   filterOfficialMatches,
   filterMatchesByRound,
+  sanitizeMatchesForProjection,
   createInitialSyncState,
   handleSyncSuccess,
   handleSyncFailure,
@@ -267,3 +268,41 @@ test("11 & 12. Security rules: role check rejects recorder and anon for technica
   assert.strictEqual(technicalCheck.allowed, true);
   assert.strictEqual(technicalCheck.status, 200);
 });
+
+test("13. sanitizeMatchesForProjection: giữ nguyên toàn bộ cặp đấu nhưng ẩn tỷ số chưa chốt (FR-03 & FR-06)", () => {
+  const round1Matches = filterMatchesByRound(sampleMatches, 1);
+  assert.strictEqual(round1Matches.length, 7, "toàn bộ 7 ván của vòng 1 được giữ lại");
+
+  const sanitized = sanitizeMatchesForProjection(round1Matches);
+  assert.strictEqual(sanitized.length, 7, "không có bàn nào bị loại bỏ khỏi màn hình chiếu");
+
+  // Ván m1 (official) giữ nguyên kết quả
+  const m1 = sanitized.find((m) => m.id === "m1");
+  assert.ok(m1);
+  assert.strictEqual(m1.result_code, "1-0");
+  assert.strictEqual(m1.result_kind, "normal");
+
+  // Ván m2 (pending_white) và m3 (pending_black) bị ẩn kết quả, kết quả thành null
+  const m2 = sanitized.find((m) => m.id === "m2");
+  assert.ok(m2);
+  assert.strictEqual(m2.result_code, null, "pending_white kết quả phải là null");
+  assert.strictEqual(m2.white_player?.full_name, "Lê Văn C");
+  assert.strictEqual(m2.black_player?.full_name, "Phạm Văn D");
+
+  const m3 = sanitized.find((m) => m.id === "m3");
+  assert.ok(m3);
+  assert.strictEqual(m3.result_code, null, "pending_black kết quả phải là null");
+
+  // Ván m4 (disputed) bị ẩn kết quả
+  const m4 = sanitized.find((m) => m.id === "m4");
+  assert.ok(m4);
+  assert.strictEqual(m4.result_code, null, "disputed kết quả phải là null");
+
+  // Ván m7 (unreported) hiển thị đầy đủ kỳ thủ nhưng không có kết quả
+  const m7 = sanitized.find((m) => m.id === "m7");
+  assert.ok(m7);
+  assert.strictEqual(m7.result_code, null);
+  assert.strictEqual(m7.white_player?.full_name, "Hồ Văn N");
+  assert.strictEqual(m7.black_player?.full_name, "Dương Thị P");
+});
+

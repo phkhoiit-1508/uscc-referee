@@ -65,12 +65,11 @@ export async function GET(
   let query = supabase
     .from("matches")
     .select(`
-      id, round_number, board_number, result_code, result_kind,
+      id, round_number, board_number, status, result_code, result_kind,
       white_player:players!white_same_tournament(full_name),
       black_player:players!black_same_tournament(full_name)
     `)
-    .eq("tournament_id", id)
-    .eq("status", "official");
+    .eq("tournament_id", id);
 
   if (roundNumber !== null) {
     query = query.eq("round_number", roundNumber);
@@ -87,6 +86,21 @@ export async function GET(
     );
   }
 
+  // Mask unconfirmed result codes in accordance with PRD FR-06
+  const sanitizedMatches = (matches ?? []).map((m) => {
+    const isOfficial = m.status === "official";
+    return {
+      id: m.id,
+      round_number: m.round_number,
+      board_number: m.board_number,
+      status: m.status,
+      result_code: isOfficial ? m.result_code : null,
+      result_kind: isOfficial ? m.result_kind : null,
+      white_player: m.white_player,
+      black_player: m.black_player,
+    };
+  });
+
   return NextResponse.json(
     {
       tournament: {
@@ -97,7 +111,7 @@ export async function GET(
         primary_color: tournament.primary_color,
       },
       round: roundNumber,
-      matches: matches ?? [],
+      matches: sanitizedMatches,
       syncedAt: new Date().toISOString(),
     },
     { headers: NO_CACHE_HEADERS },

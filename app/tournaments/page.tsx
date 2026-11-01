@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { TournamentCreateForm } from "@/components/tournament-create-form";
+import { TournamentDeleteButton } from "@/components/tournament-delete-button";
 import { Button } from "@/components/ui/button";
 import { requireReferee } from "@/lib/require-referee";
 import { createClient } from "@/lib/supabase/server";
@@ -153,9 +154,25 @@ async function TournamentsContent() {
                       </div>
                     </div>
 
-                    <Button asChild variant="outline" className="bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900">
-                      <Link href={`/tournaments/${tournament.id}`}>Mở giải</Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button asChild variant="outline" className="bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900">
+                        <Link href={`/tournaments/${tournament.id}`}>Mở giải</Link>
+                      </Button>
+                      {isTechnical && (
+                        <Button asChild variant="outline" className="border-teal-200 bg-white text-teal-700 hover:bg-teal-50 hover:text-teal-800">
+                          <Link href={`/tournaments/${tournament.id}/projection`} target="_blank" rel="noopener noreferrer">
+                            Trình chiếu ↗
+                          </Link>
+                        </Button>
+                      )}
+                      {isTechnical && (
+                        <TournamentDeleteButton
+                          tournamentId={tournament.id}
+                          tournamentName={tournament.name}
+                          variant="compact"
+                        />
+                      )}
+                    </div>
                   </div>
                 </article>
               ))}

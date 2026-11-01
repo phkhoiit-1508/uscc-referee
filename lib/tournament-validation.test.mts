@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   isSafeHttpUrl,
+  isValidUuid,
   validateTournamentInput,
 } from "./tournament-validation.ts";
 
@@ -119,4 +120,14 @@ test("FR-01 validateTournamentInput: kiểm tra mã màu hex #RRGGBB", () => {
     assert.equal(badColor.errorCode, "INVALID_PRIMARY_COLOR");
   }
 });
+
+test("isValidUuid: kiểm tra định dạng UUID hợp lệ và từ chối chuỗi sai", () => {
+  assert.equal(isValidUuid("a0000000-0000-4000-8000-000000000001"), true);
+  assert.equal(isValidUuid("18428721-6f55-446f-821d-746347991dbb"), true);
+  assert.equal(isValidUuid("not-a-uuid"), false);
+  assert.equal(isValidUuid(""), false);
+  assert.equal(isValidUuid("18428721-6f55-446f-821d"), false);
+  assert.equal(isValidUuid("   18428721-6f55-446f-821d-746347991dbb   "), true);
+});
+
 

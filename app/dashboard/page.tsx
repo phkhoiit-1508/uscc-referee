@@ -1,4 +1,3 @@
-
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -51,7 +50,22 @@ async function DashboardContent() {
     <main className="min-h-screen bg-slate-100">
       <header className="flex items-center justify-between bg-slate-900 px-6 py-5 text-white">
         <h1 className="text-2xl font-bold">
-          <Image src="/clubs/logo-title.png" alt="USCC" height={36} width={120} className="h-9 w-auto" />
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 transition-opacity hover:opacity-90"
+          >
+            <Image
+              src="/clubs/only_white.png"
+              alt="USCC Logo"
+              height={36}
+              width={36}
+              className="h-9 w-9 object-contain"
+              priority
+            />
+            <span className="text-2xl font-bold tracking-wider text-white">
+              USCC
+            </span>
+          </Link>
         </h1>
 
         <LogoutButton />

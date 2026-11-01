@@ -4,7 +4,8 @@ export type OfficialMatch = {
   id: string;
   round_number: number;
   board_number: number;
-  result_code: string;
+  status?: string;
+  result_code: string | null;
   result_kind: ResultKind | null;
   white_player: { full_name: string } | null;
   black_player: { full_name: string } | null;
@@ -34,8 +35,6 @@ export type MatchWithStatus = {
 
 /**
  * Filter only official matches.
- * Pending (white/black), disputed, special_review, reopened, and cancelled/unreported matches
- * are strictly excluded from projection display.
  */
 export function filterOfficialMatches<T extends MatchWithStatus>(matches: T[]): T[] {
   return matches.filter(
@@ -44,6 +43,32 @@ export function filterOfficialMatches<T extends MatchWithStatus>(matches: T[]): 
       typeof m.result_code === "string" &&
       m.result_code.length > 0,
   );
+}
+
+/**
+ * Sanitizes matches for projection display according to PRD FR-03 & FR-06:
+ * - All round pairings are displayed so spectators & arbiters see every board.
+ * - Non-official matches (unreported, pending, disputed, reopened) have their result_code & result_kind masked to null
+ *   so unconfirmed scores are never published as official results.
+ */
+export function sanitizeMatchesForProjection<T extends MatchWithStatus>(
+  matches: T[],
+): (Omit<T, "result_code" | "result_kind"> & {
+  result_code: string | null;
+  result_kind: ResultKind | null;
+})[] {
+  return matches.map((m) => {
+    const isOfficial =
+      m.status === "official" &&
+      typeof m.result_code === "string" &&
+      m.result_code.length > 0;
+
+    return {
+      ...m,
+      result_code: isOfficial ? m.result_code : null,
+      result_kind: isOfficial ? (m.result_kind as ResultKind) : null,
+    };
+  });
 }
 
 /**

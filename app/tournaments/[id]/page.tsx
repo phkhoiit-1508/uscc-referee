@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { ImportPreviewForm } from "@/components/import-preview-form";
 import { RecorderMatchLookup } from "@/components/recorder-match-lookup";
 import { TournamentEditForm } from "@/components/tournament-create-form";
+import { TournamentDeleteButton } from "@/components/tournament-delete-button";
 import { TournamentExportPanel } from "@/components/tournament-export-panel";
 import { Button } from "@/components/ui/button";
 import { requireReferee } from "@/lib/require-referee";
@@ -243,7 +244,9 @@ async function TournamentContent({ id }: { id: string }) {
         {isTechnical && (
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild variant="outline" className="bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900">
-              <Link href={`/tournaments/${id}/projection`}>Trang chiếu kết quả</Link>
+              <Link href={`/tournaments/${id}/projection`} target="_blank" rel="noopener noreferrer">
+                Trang chiếu kết quả (FR-03/07) ↗
+              </Link>
             </Button>
           </div>
         )}
@@ -251,7 +254,7 @@ async function TournamentContent({ id }: { id: string }) {
         {isTechnical && (
           <section className="mt-10 border border-slate-200 bg-white p-5 sm:p-7">
             <div className="mb-5">
-              <h2 className="text-xl font-semibold">Xuất kết quả</h2>
+              <h2 className="text-xl font-semibold">Xuất kết quả (FR-09)</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Xuất file Excel đối soát nội bộ và file XML theo chuẩn Swiss-Manager để nạp lại kết quả.
               </p>
@@ -260,6 +263,24 @@ async function TournamentContent({ id }: { id: string }) {
               tournamentId={tournament.id}
               totalRounds={tournament.total_rounds}
             />
+          </section>
+        )}
+
+        {isTechnical && (
+          <section className="mt-6 border border-red-200 bg-red-50/30 p-5 sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-red-900">Xóa giải đấu</h2>
+                <p className="mt-1 text-sm text-red-700">
+                  Xóa vĩnh viễn giải đấu này cùng toàn bộ danh sách kỳ thủ, cặp đấu và kết quả liên quan. Thao tác này không thể hoàn tác.
+                </p>
+              </div>
+              <TournamentDeleteButton
+                tournamentId={tournament.id}
+                tournamentName={tournament.name}
+                variant="danger-zone"
+              />
+            </div>
           </section>
         )}
 

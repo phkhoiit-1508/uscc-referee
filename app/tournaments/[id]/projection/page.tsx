@@ -28,18 +28,31 @@ async function ProjectionContent({ id }: { id: string }) {
   }
   if (!tournament) notFound();
 
-  // Load initial official matches for round 1 for fast SSR rendering
+  // Load initial pairings for round 1 for fast SSR rendering
   const { data: matches } = await supabase
     .from("matches")
     .select(`
-      id, round_number, board_number, result_code, result_kind,
+      id, round_number, board_number, status, result_code, result_kind,
       white_player:players!white_same_tournament(full_name),
       black_player:players!black_same_tournament(full_name)
     `)
     .eq("tournament_id", id)
-    .eq("status", "official")
     .eq("round_number", 1)
     .order("board_number");
+
+  const sanitizedInitialMatches = (matches ?? []).map((m) => {
+    const isOfficial = m.status === "official";
+    return {
+      id: m.id,
+      round_number: m.round_number,
+      board_number: m.board_number,
+      status: m.status,
+      result_code: isOfficial ? m.result_code : null,
+      result_kind: isOfficial ? m.result_kind : null,
+      white_player: m.white_player,
+      black_player: m.black_player,
+    };
+  });
 
   const initialSyncedAt = new Date().toISOString();
 
@@ -50,7 +63,7 @@ async function ProjectionContent({ id }: { id: string }) {
       totalRounds={tournament.total_rounds}
       logoUrl={tournament.logo_url}
       primaryColor={tournament.primary_color}
-      initialMatches={(matches as unknown as OfficialMatch[]) ?? []}
+      initialMatches={(sanitizedInitialMatches as unknown as OfficialMatch[]) ?? []}
       initialSyncedAt={initialSyncedAt}
       initialRound={1}
     />
